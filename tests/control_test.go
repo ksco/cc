@@ -20,4 +20,7 @@ func TestControl(t *testing.T) {
 	a.Eval(10, "int main() { int i=0; while(i<10) i=i+1; return i; }")
 	a.Eval(55, "int main() { int i=0; int j=0; while(i<=10) {j=i+j; i=i+1;} return j; }")
 
+	a.Eval(3, "int main() { return (1,2,3); }")
+	a.Eval(5, "int main() { int i=2, j=3; (i=5,j)=6; return i; }")
+	a.Eval(6, "int main() { int i=2, j=3; (i=5,j)=6; return j; }")
 }

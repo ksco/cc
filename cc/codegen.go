@@ -144,6 +144,11 @@ func (g *CodeGenerator) GenAddr(node *Node, funcName string) {
 	case NKDeRef:
 		g.GenExpr(node.Val.(*Node), funcName)
 		return
+	case NKComma:
+		binary := node.Val.(*BinaryExpr)
+		g.GenExpr(binary.Lhs, funcName)
+		g.GenAddr(binary.Rhs, funcName)
+		return
 	}
 
 	panic(errors.New("not a lvalue"))
@@ -228,6 +233,11 @@ func (g *CodeGenerator) GenExpr(node *Node, funcName string) {
 		g.Push()
 		g.GenExpr(binary.Rhs, funcName)
 		g.Store(node.Type)
+		return
+	case NKComma:
+		binary := node.Val.(*BinaryExpr)
+		g.GenExpr(binary.Lhs, funcName)
+		g.GenExpr(binary.Rhs, funcName)
 		return
 	case NKStmtExpr:
 		g.GenStmt(node.Val.(*Node), funcName)

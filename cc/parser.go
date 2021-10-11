@@ -258,7 +258,7 @@ func (p *Parser) Declaration() *Node {
 				NKAssign,
 				&BinaryExpr{
 					Lhs: NewNode(NKVariable, obj, tok),
-					Rhs: p.Expr(),
+					Rhs: p.Assign(),
 				}, tok),
 			tok),
 		)
@@ -371,7 +371,14 @@ func (p *Parser) ExprStmt() *Node {
 }
 
 func (p *Parser) Expr() *Node {
-	return p.Assign()
+	tok := p.Current()
+	node := p.Assign()
+	if p.Current().Equal(TKPunctuator, ",") {
+		p.Next()
+		return NewNode(NKComma, &BinaryExpr{Lhs: node, Rhs: p.Expr()}, tok)
+	}
+
+	return node
 }
 
 func (p *Parser) Assign() *Node {

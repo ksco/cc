@@ -13,6 +13,7 @@ const (
 	NKLt                       // <
 	NKLe                       // <=
 	NKAssign                   // =
+	NKComma                    // ,
 	NKAddr                     // unary &
 	NKDeRef                    // unary *
 	NKReturn                   // "return"
@@ -170,6 +171,11 @@ func (n *Node) AddType() {
 		if n.Kind == NKSub && node.Lhs.Type.Kind == TypeKindPtr && node.Rhs.Type.Kind == TypeKindPtr {
 			n.Type = IntType
 		}
+	case NKComma:
+		binary := n.Val.(*BinaryExpr)
+		binary.Lhs.AddType()
+		binary.Rhs.AddType()
+		n.Type = binary.Rhs.Type
 	case NKNeg:
 		n.Type = n.Val.(*Node).Type
 	case NKEq, NKNe, NKLt, NKLe, NKNum, NKFuncCall:
