@@ -51,9 +51,11 @@ func (g *CodeGenerator) GenData() {
 		}
 
 		if global.Val != nil {
+			// String literals
 			g.Printf("%s:\n", o.Name)
 			g.Printf("  .asciz \"%s\"\n", string(global.Val.([]byte)))
 		} else {
+			// Global variable
 			g.Printf("  .comm _%s, %d\n", o.Name, o.Type.Size)
 		}
 	}
@@ -65,13 +67,15 @@ func (g *CodeGenerator) GenCode() {
 		if !ok {
 			continue
 		}
+
+		// Prologue
 		g.Printf("  .globl _%s\n", o.Name)
 		g.Printf("_%s:\n", o.Name)
-
 		g.Printf("  push %%rbp\n")
 		g.Printf("  mov %%rsp, %%rbp\n")
 		g.Printf("  sub $%d, %%rsp\n", function.StackSize)
 
+		// Prepare function parameters
 		for i, param := range function.Params {
 			bits := 64
 			if param.Type.Size == 1 {
@@ -83,6 +87,7 @@ func (g *CodeGenerator) GenCode() {
 		g.GenStmt(function.Body, o.Name)
 		g.CheckDepth()
 
+		// Epilogue
 		g.Printf(".L.return.%s:\n", o.Name)
 		g.Printf("  mov %%rbp, %%rsp\n")
 		g.Printf("  pop %%rbp\n")
@@ -98,16 +103,19 @@ func (g *CodeGenerator) CheckDepth() {
 	return
 }
 
+// Push data in rax to stack
 func (g *CodeGenerator) Push() {
 	g.Printf("  push %%rax\n")
 	g.depth++
 }
 
+// Pop data from stack to <arg> register
 func (g *CodeGenerator) Pop(arg string) {
 	g.Printf("  pop %s\n", arg)
 	g.depth--
 }
 
+// Load value in memory pointed by rax to rax
 func (g *CodeGenerator) Load(t *Type) {
 	if t.Kind == TypeKindArray {
 		return
@@ -120,6 +128,7 @@ func (g *CodeGenerator) Load(t *Type) {
 	}
 }
 
+// Store rax to memory pointed by stack top
 func (g *CodeGenerator) Store(t *Type) {
 	g.Pop("%rdi")
 
@@ -130,6 +139,8 @@ func (g *CodeGenerator) Store(t *Type) {
 	}
 }
 
+// GenAddr puts node's memory address to rax
+// But if node is a deref expr, the addr effect will be cancelled out
 func (g *CodeGenerator) GenAddr(node *Node, funcName string) {
 	switch node.Kind {
 	case NKVariable:
