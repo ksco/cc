@@ -3,11 +3,12 @@ package cc
 type TypeKind int
 
 const (
-	TypeKindChar TypeKind = iota
-	TypeKindInt
-	TypeKindPtr
-	TypeKindFunc
-	TypeKindArray
+	TYChar TypeKind = iota
+	TYInt
+	TYPtr
+	TYFunc
+	TYArray
+	TYStruct
 )
 
 type Type struct {
@@ -18,22 +19,22 @@ type Type struct {
 }
 
 func (t *Type) IsInteger() bool {
-	return t.Kind == TypeKindInt || t.Kind == TypeKindChar
+	return t.Kind == TYInt || t.Kind == TYChar
 }
 
 var (
-	IntType  = NewType(TypeKindInt, nil, nil)
-	CharType = NewType(TypeKindChar, nil, nil)
+	IntType  = NewType(TYInt, nil, nil)
+	CharType = NewType(TYChar, nil, nil)
 )
 
 func NewType(k TypeKind, base *Type, val interface{}) *Type {
 	size := 0
 	switch k {
-	case TypeKindChar:
+	case TYChar:
 		size = 1
-	case TypeKindInt, TypeKindPtr:
+	case TYInt, TYPtr:
 		size = 8
-	case TypeKindArray:
+	case TYArray:
 		size = base.Size * val.(int)
 	}
 	return &Type{

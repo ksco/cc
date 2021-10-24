@@ -117,7 +117,7 @@ func (g *CodeGenerator) Pop(arg string) {
 
 // Load value in memory pointed by rax to rax
 func (g *CodeGenerator) Load(t *Type) {
-	if t.Kind == TypeKindArray {
+	if t.Kind == TYArray {
 		return
 	}
 
@@ -159,6 +159,10 @@ func (g *CodeGenerator) GenAddr(node *Node, funcName string) {
 		binary := node.Val.(*BinaryExpr)
 		g.GenExpr(binary.Lhs, funcName)
 		g.GenAddr(binary.Rhs, funcName)
+		return
+	case NKMember:
+		g.GenAddr(node.Val.(*StructMemberAccess).Struct, funcName)
+		g.Printf("  add $%d, %%rax\n", node.Val.(*StructMemberAccess).Member.Offset)
 		return
 	}
 
@@ -227,7 +231,7 @@ func (g *CodeGenerator) GenExpr(node *Node, funcName string) {
 		g.GenExpr(node.Val.(*Node), funcName)
 		g.Printf("  neg %%rax\n")
 		return
-	case NKVariable:
+	case NKVariable, NKMember:
 		g.GenAddr(node, funcName)
 		g.Load(node.Type)
 		return

@@ -14,6 +14,7 @@ const (
 	NKLe                       // <=
 	NKAssign                   // =
 	NKComma                    // ,
+	NKMember                   // .
 	NKAddr                     // unary &
 	NKDeRef                    // unary *
 	NKReturn                   // "return"
@@ -26,6 +27,12 @@ const (
 	NKVariable                 // Variable
 	NKNum                      // integer
 )
+
+type StructMember struct {
+	Type   *Type
+	Name   string
+	Offset int
+}
 
 type IfClause struct {
 	Cond *Node
@@ -48,6 +55,11 @@ type BinaryExpr struct {
 type FuncCall struct {
 	Name string
 	Args []*Node
+}
+
+type StructMemberAccess struct {
+	Struct *Node
+	Member *StructMember
 }
 
 type Node struct {
@@ -168,7 +180,7 @@ func (n *Node) AddType() {
 	case NKAdd, NKSub, NKMul, NKDiv, NKAssign:
 		node := n.Val.(*BinaryExpr)
 		n.Type = node.Lhs.Type
-		if n.Kind == NKSub && node.Lhs.Type.Kind == TypeKindPtr && node.Rhs.Type.Kind == TypeKindPtr {
+		if n.Kind == NKSub && node.Lhs.Type.Kind == TYPtr && node.Rhs.Type.Kind == TYPtr {
 			n.Type = IntType
 		}
 	case NKComma:
@@ -182,11 +194,13 @@ func (n *Node) AddType() {
 		n.Type = IntType
 	case NKVariable:
 		n.Type = n.Val.(*Object).Type
+	case NKMember:
+		n.Type = n.Val.(*StructMemberAccess).Member.Type
 	case NKAddr:
-		if n.Val.(*Node).Type.Kind == TypeKindArray {
-			n.Type = NewType(TypeKindPtr, n.Val.(*Node).Type.Base, nil)
+		if n.Val.(*Node).Type.Kind == TYArray {
+			n.Type = NewType(TYPtr, n.Val.(*Node).Type.Base, nil)
 		} else {
-			n.Type = NewType(TypeKindPtr, n.Val.(*Node).Type, nil)
+			n.Type = NewType(TYPtr, n.Val.(*Node).Type, nil)
 		}
 	case NKDeRef:
 		if n.Val.(*Node).Type.Base == nil {

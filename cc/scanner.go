@@ -92,7 +92,7 @@ func (s *Scanner) Scan() ([]*Token, error) {
 				return nil, err
 			}
 			tokens = append(tokens, NewToken(TKString, string(s.code[:l]), s.pos, &String{
-				Type: NewType(TypeKindArray, CharType, len(r)+1),
+				Type: NewType(TYArray, CharType, len(r)+1),
 				Val:  []byte(string(r)),
 			}, s.source))
 			s.skip(l)
@@ -134,7 +134,7 @@ func readPunctuator(s []rune) (string, int) {
 		}
 	}
 
-	if strings.ContainsRune("+-*/(){}<>[],;=&", s[0]) {
+	if strings.ContainsRune("+-*/(){}<>[],;=&.", s[0]) {
 		return string(s[0]), 1
 	}
 
@@ -271,7 +271,7 @@ func readStringLiteral(s []rune) (rs []rune, l int, err error) {
 
 func isKeyword(n string) bool {
 	switch n {
-	case "return", "if", "else", "for", "while", "int", "char", "sizeof":
+	case "return", "if", "else", "for", "while", "int", "char", "sizeof", "struct":
 		return true
 	}
 	return false

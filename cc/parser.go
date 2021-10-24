@@ -132,7 +132,7 @@ func (p *Parser) IsFunction() bool {
 	pos := p.pos
 	o, _ := p.Declarator(p.DeclSpec())
 	p.MoveTo(pos)
-	return o.Type.Kind == TypeKindFunc
+	return o.Type.Kind == TYFunc
 }
 
 func (p *Parser) GlobalVariables() []*Object {
@@ -177,8 +177,18 @@ func (p *Parser) DeclSpec() *Type {
 		p.Consume(TKKeyword, "char")
 		return CharType
 	}
-	p.Consume(TKKeyword, "int")
-	return IntType
+
+	if p.Current().Equal(TKKeyword, "int") {
+		p.Consume(TKKeyword, "int")
+		return IntType
+	}
+
+	if p.Current().Equal(TKKeyword, "struct") {
+		p.Consume(TKKeyword, "struct")
+		return p.StructDecl()
+	}
+
+	panic(p.Current().Errorf("type name expected"))
 }
 
 func (p *Parser) FuncParams() []*Object {
@@ -199,7 +209,7 @@ func (p *Parser) FuncParams() []*Object {
 func (p *Parser) TypeSuffix(base *Type) (*Type, []*Object) {
 	if p.Current().Equal(TKPunctuator, "(") {
 		p.Next()
-		return NewType(TypeKindFunc, base, nil), p.FuncParams()
+		return NewType(TYFunc, base, nil), p.FuncParams()
 	}
 	if p.Current().Equal(TKPunctuator, "[") {
 		p.Next()
@@ -211,7 +221,7 @@ func (p *Parser) TypeSuffix(base *Type) (*Type, []*Object) {
 		p.Next()
 		p.Consume(TKPunctuator, "]")
 		t, _ := p.TypeSuffix(base)
-		return NewType(TypeKindArray, t, tok.Val), nil
+		return NewType(TYArray, t, tok.Val), nil
 	}
 	return base, nil
 }
@@ -219,7 +229,7 @@ func (p *Parser) TypeSuffix(base *Type) (*Type, []*Object) {
 func (p *Parser) Declarator(base *Type) (*Object, []*Object) {
 	for p.Current().Equal(TKPunctuator, "*") {
 		p.Next()
-		base = NewType(TypeKindPtr, base, nil)
+		base = NewType(TYPtr, base, nil)
 	}
 
 	tok := p.Current()
@@ -335,7 +345,7 @@ func (p *Parser) Stmt() *Node {
 
 func (p *Parser) IsTypeName() bool {
 	tok := p.Current()
-	return tok.Equal(TKKeyword, "int") || tok.Equal(TKKeyword, "char")
+	return tok.Equal(TKKeyword, "int") || tok.Equal(TKKeyword, "char") || tok.Equal(TKKeyword, "struct")
 }
 
 func (p *Parser) Stmts() *Node {
@@ -361,7 +371,6 @@ func (p *Parser) ExprStmt() *Node {
 	if p.Current().Equal(TKPunctuator, ";") {
 		p.Next()
 		return NewNode(NKBlock, make([]*Node, 0), tok)
-
 	}
 
 	tok = p.Current()
@@ -516,18 +525,81 @@ func (p *Parser) Unary() *Node {
 	return p.Postfix()
 }
 
+func (p *Parser) StructMembers() []*StructMember {
+	ms := make([]*StructMember, 0)
+	for !p.Current().Equal(TKPunctuator, "}") {
+		base := p.DeclSpec()
+
+		first := true
+		for !p.Current().Equal(TKPunctuator, ";") {
+			if !first {
+				p.Consume(TKPunctuator, ",")
+			}
+
+			o, _ := p.Declarator(base)
+			ms = append(ms, &StructMember{Type: o.Type, Name: o.Name})
+			first = false
+		}
+
+		p.Next()
+	}
+
+	p.Next()
+	return ms
+}
+
+func (p *Parser) StructDecl() *Type {
+	p.Consume(TKPunctuator, "{")
+
+	ms := p.StructMembers()
+
+	offset := 0
+	for _, m := range ms {
+		m.Offset = offset
+		offset += m.Type.Size
+	}
+
+	return &Type{Kind: TYStruct, Val: ms, Size: offset}
+}
+
 func (p *Parser) Postfix() *Node {
 	n := p.Primary()
 	n.AddType()
-	for p.Current().Equal(TKPunctuator, "[") {
-		p.Next()
-		tok := p.Current()
-		expr := p.Expr()
-		p.Consume(TKPunctuator, "]")
-		n = NewNode(NKDeRef, NewNodeAdd(n, expr, tok), tok)
-	}
 
-	return n
+	for {
+		if p.Current().Equal(TKPunctuator, "[") {
+			p.Next()
+			tok := p.Current()
+			expr := p.Expr()
+			p.Consume(TKPunctuator, "]")
+			n = NewNode(NKDeRef, NewNodeAdd(n, expr, tok), tok)
+			n.AddType()
+			continue
+		}
+
+		if p.Current().Equal(TKPunctuator, ".") {
+			p.Next()
+			if n.Type.Kind != TYStruct {
+				panic(p.Current().Errorf("not a struct"))
+			}
+			n = func() *Node {
+				node := NewNode(NKMember, &StructMemberAccess{Struct: n}, p.Current())
+				for _, m := range n.Type.Val.([]*StructMember) {
+					if m.Name == p.Current().Lexeme {
+						node.Val.(*StructMemberAccess).Member = m
+						return node
+					}
+				}
+				panic(p.Current().Errorf("no such member"))
+			}()
+			n.AddType()
+
+			p.Next()
+			continue
+		}
+
+		return n
+	}
 }
 
 func (p *Parser) FuncCall(tok *Token) *Node {
