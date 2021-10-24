@@ -28,6 +28,32 @@ func NewParser(tokens []*Token) *Parser {
 	}
 }
 
+func (p *Parser) Parse() (objects []*Object, err error) {
+	defer func() {
+		var r interface{}
+		if r = recover(); r == nil {
+			return
+		}
+
+		var ok bool
+		if err, ok = r.(error); !ok {
+			panic(r)
+		}
+	}()
+
+	for !p.ReachedEOF() {
+		if p.IsFunction() {
+			objects = append(objects, p.FuncDef())
+			continue
+		}
+		objects = append(objects, p.GlobalVariables()...)
+	}
+
+	objects = append(objects, p.literals...)
+
+	return
+}
+
 func (p *Parser) EnterScope() {
 	p.scope = &Scope{next: p.scope}
 }
@@ -100,32 +126,6 @@ func (p *Parser) FindVariable(name string) (o *Object) {
 		}
 	}
 	return nil
-}
-
-func (p *Parser) Parse() (objects []*Object, err error) {
-	defer func() {
-		var r interface{}
-		if r = recover(); r == nil {
-			return
-		}
-
-		var ok bool
-		if err, ok = r.(error); !ok {
-			panic(r)
-		}
-	}()
-
-	for !p.ReachedEOF() {
-		if p.IsFunction() {
-			objects = append(objects, p.FuncDef())
-			continue
-		}
-		objects = append(objects, p.GlobalVariables()...)
-	}
-
-	objects = append(objects, p.literals...)
-
-	return
 }
 
 func (p *Parser) IsFunction() bool {
@@ -550,16 +550,7 @@ func (p *Parser) StructMembers() []*StructMember {
 
 func (p *Parser) StructDecl() *Type {
 	p.Consume(TKPunctuator, "{")
-
-	ms := p.StructMembers()
-
-	offset := 0
-	for _, m := range ms {
-		m.Offset = offset
-		offset += m.Type.Size
-	}
-
-	return &Type{Kind: TYStruct, Val: ms, Size: offset}
+	return NewType(TYStruct, nil, p.StructMembers())
 }
 
 func (p *Parser) Postfix() *Node {

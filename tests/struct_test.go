@@ -27,6 +27,7 @@ func TestStruct(t *testing.T) {
 	a.Eval(32, "int main() { struct {int a;} x[4]; return sizeof(x); }")
 	a.Eval(48, "int main() { struct {int a[3];} x[2]; return sizeof(x); }")
 	a.Eval(2, "int main() { struct {char a; char b;} x; return sizeof(x); }")
-	a.Eval(9, "int main() { struct {char a; int b;} x; return sizeof(x); }")
 	a.Eval(0, "int main() { struct {} x; return sizeof(x); }")
+	a.Eval(16, "int main() { struct {char a; int b;} x; return sizeof(x); }")
+	a.Eval(16, "int main() { struct {int a; char b;} x; return sizeof(x); }")
 }
