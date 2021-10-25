@@ -4,6 +4,7 @@ import "fmt"
 
 type Scope struct {
 	vars []*Object
+	tags []*Type
 }
 
 type Parser struct {
@@ -60,21 +61,25 @@ func (p *Parser) ScopeVars() []*Object {
 	return p.scopes[0].vars
 }
 
-func (p *Parser) PushScope(o *Object) {
+func (p *Parser) PushVarScope(o *Object) {
 	p.scopes[0].vars = append([]*Object{o}, p.scopes[0].vars...)
+}
+
+func (p *Parser) PushTagScope(t *Type) {
+	p.scopes[0].tags = append([]*Type{t}, p.scopes[0].tags...)
 }
 
 func (p *Parser) AddLocals(locals ...*Object) {
 	for _, l := range locals {
 		l.Val = &Local{}
-		p.PushScope(l)
+		p.PushVarScope(l)
 	}
 }
 
 func (p *Parser) AddGlobals(globals ...*Object) {
 	for _, g := range globals {
 		g.Val = &Global{}
-		p.PushScope(g)
+		p.PushVarScope(g)
 	}
 }
 
@@ -107,11 +112,22 @@ func (p *Parser) Consume(kind TokenKind, lexeme string) {
 	p.Next()
 }
 
-func (p *Parser) FindVariable(name string) (o *Object) {
+func (p *Parser) FindVariable(name string) *Object {
 	for _, s := range p.scopes {
-		for _, vs := range s.vars {
-			if name == vs.Name {
-				return vs
+		for _, v := range s.vars {
+			if name == v.Name {
+				return v
+			}
+		}
+	}
+	return nil
+}
+
+func (p *Parser) FindTags(name string) *Type {
+	for _, s := range p.scopes {
+		for _, t := range s.tags {
+			if t.Val.(*StructVal).Name != nil && name == t.Val.(*StructVal).Name.Val.(string) {
+				return t
 			}
 		}
 	}
@@ -538,8 +554,26 @@ func (p *Parser) StructMembers() []*StructMember {
 }
 
 func (p *Parser) StructDecl() *Type {
+	var tag *Token
+	if p.Current().Kind == TKIdentifier {
+		tag = p.Current()
+		p.Next()
+	}
+
+	if tag != nil && !p.Current().Equal(TKPunctuator, "{") {
+		t := p.FindTags(tag.Val.(string))
+		if t == nil {
+			panic(tag.Errorf("unknown struct type"))
+		}
+		return t
+	}
 	p.Consume(TKPunctuator, "{")
-	return NewType(TYStruct, nil, p.StructMembers())
+	t := NewType(TYStruct, nil, &StructVal{
+		Members: p.StructMembers(),
+		Name:    tag,
+	})
+	p.PushTagScope(t)
+	return t
 }
 
 func (p *Parser) Postfix() *Node {
@@ -561,7 +595,7 @@ func (p *Parser) Postfix() *Node {
 				panic(p.Current().Errorf("not a struct"))
 			}
 			n = func() *Node {
-				for _, m := range n.Type.Val.([]*StructMember) {
+				for _, m := range n.Type.Val.(*StructVal).Members {
 					if m.Name == p.Current().Lexeme {
 						return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
 					}

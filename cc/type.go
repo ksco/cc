@@ -13,6 +13,11 @@ const (
 	TYStruct
 )
 
+type StructVal struct {
+	Members []*StructMember
+	Name    *Token
+}
+
 type Type struct {
 	Kind  TypeKind
 	Base  *Type
@@ -42,7 +47,7 @@ func NewType(k TypeKind, base *Type, val interface{}) *Type {
 		align = base.Align
 	case TYStruct:
 		offset := 0
-		for _, m := range val.([]*StructMember) {
+		for _, m := range val.(*StructVal).Members {
 			offset = alignTo(offset, m.Type.Align)
 			m.Offset = offset
 			offset += m.Type.Size
