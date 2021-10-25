@@ -589,19 +589,29 @@ func (p *Parser) Postfix() *Node {
 			continue
 		}
 
+		memberAccess := func() *Node {
+			for _, m := range n.Type.Val.(*StructVal).Members {
+				if m.Name == p.Current().Lexeme {
+					return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
+				}
+			}
+			panic(p.Current().Errorf("no such member"))
+		}
 		if p.Current().Equal(TKPunctuator, ".") {
 			p.Next()
 			if n.Type.Kind != TYStruct {
 				panic(p.Current().Errorf("not a struct"))
 			}
-			n = func() *Node {
-				for _, m := range n.Type.Val.(*StructVal).Members {
-					if m.Name == p.Current().Lexeme {
-						return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
-					}
-				}
-				panic(p.Current().Errorf("no such member"))
-			}()
+			n = memberAccess()
+
+			p.Next()
+			continue
+		}
+
+		if p.Current().Equal(TKPunctuator, "->") {
+			p.Next()
+			n = NewNode(NKDeRef, n, p.Current())
+			n = memberAccess()
 
 			p.Next()
 			continue

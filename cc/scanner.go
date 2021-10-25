@@ -129,7 +129,7 @@ func readPunctuator(s []rune) (string, int) {
 	if len(s) >= 2 {
 		p := string(s[:2])
 		switch p {
-		case "==", "!=", "<=", ">=":
+		case "==", "!=", "<=", ">=", "->":
 			return p, 2
 		}
 	}
