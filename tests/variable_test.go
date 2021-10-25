@@ -67,4 +67,7 @@ func TestVariable(t *testing.T) {
 	a.Eval(2, "int main() { int x=2; { int x=3; } return x; }")
 	a.Eval(2, "int main() { int x=2; { int x=3; } { int y=4; return x; }}")
 	a.Eval(3, "int main() { int x=2; { x=3; } return x; }")
+
+	a.Eval(15, "int main() { int x; int y; char z; char *a=&y; char *b=&z; return b-a; }")
+	a.Eval(1, "int main() { int x; char y; int z; char *a=&y; char *b=&z; return b-a; }")
 }

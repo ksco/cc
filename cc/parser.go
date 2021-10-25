@@ -2,20 +2,14 @@ package cc
 
 import "fmt"
 
-type VarScope struct {
-	next *VarScope
-	o    *Object
-}
-
 type Scope struct {
-	next *Scope
-	vars *VarScope
+	vars []*Object
 }
 
 type Parser struct {
 	tokens    []*Token
 	literals  []*Object
-	scope     *Scope
+	scopes    []*Scope
 	stackSize int
 	pos       int
 	strId     int
@@ -24,7 +18,7 @@ type Parser struct {
 func NewParser(tokens []*Token) *Parser {
 	return &Parser{
 		tokens: tokens,
-		scope:  &Scope{},
+		scopes: []*Scope{&Scope{}},
 	}
 }
 
@@ -55,23 +49,19 @@ func (p *Parser) Parse() (objects []*Object, err error) {
 }
 
 func (p *Parser) EnterScope() {
-	p.scope = &Scope{next: p.scope}
+	p.scopes = append([]*Scope{&Scope{}}, p.scopes...)
 }
 
 func (p *Parser) LeaveScope() {
-	p.scope = p.scope.next
+	p.scopes = p.scopes[1:]
 }
 
 func (p *Parser) ScopeVars() []*Object {
-	vars := make([]*Object, 0)
-	for v := p.scope.vars; v != nil; v = v.next {
-		vars = append(vars, v.o)
-	}
-	return vars
+	return p.scopes[0].vars
 }
 
 func (p *Parser) PushScope(o *Object) {
-	p.scope.vars = &VarScope{next: p.scope.vars, o: o}
+	p.scopes[0].vars = append([]*Object{o}, p.scopes[0].vars...)
 }
 
 func (p *Parser) AddLocals(locals ...*Object) {
@@ -118,10 +108,10 @@ func (p *Parser) Consume(kind TokenKind, lexeme string) {
 }
 
 func (p *Parser) FindVariable(name string) (o *Object) {
-	for s := p.scope; s != nil; s = s.next {
-		for vs := s.vars; vs != nil; vs = vs.next {
-			if name == vs.o.Name {
-				return vs.o
+	for _, s := range p.scopes {
+		for _, vs := range s.vars {
+			if name == vs.Name {
+				return vs
 			}
 		}
 	}
@@ -159,7 +149,6 @@ func (p *Parser) FuncDef() *Object {
 
 	p.AddLocals(params...)
 	body := p.Stmts()
-	body.AddType()
 	f := &Function{
 		Body:   body,
 		Locals: p.ScopeVars(),
@@ -555,7 +544,6 @@ func (p *Parser) StructDecl() *Type {
 
 func (p *Parser) Postfix() *Node {
 	n := p.Primary()
-	n.AddType()
 
 	for {
 		if p.Current().Equal(TKPunctuator, "[") {
@@ -564,7 +552,6 @@ func (p *Parser) Postfix() *Node {
 			expr := p.Expr()
 			p.Consume(TKPunctuator, "]")
 			n = NewNode(NKDeRef, NewNodeAdd(n, expr, tok), tok)
-			n.AddType()
 			continue
 		}
 
@@ -574,16 +561,13 @@ func (p *Parser) Postfix() *Node {
 				panic(p.Current().Errorf("not a struct"))
 			}
 			n = func() *Node {
-				node := NewNode(NKMember, &StructMemberAccess{Struct: n}, p.Current())
 				for _, m := range n.Type.Val.([]*StructMember) {
 					if m.Name == p.Current().Lexeme {
-						node.Val.(*StructMemberAccess).Member = m
-						return node
+						return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
 					}
 				}
 				panic(p.Current().Errorf("no such member"))
 			}()
-			n.AddType()
 
 			p.Next()
 			continue
@@ -631,7 +615,6 @@ func (p *Parser) Primary() *Node {
 
 	if tok.Equal(TKKeyword, "sizeof") {
 		n := p.Unary()
-		n.AddType()
 		return NewNode(NKNum, n.Type.Size, tok)
 	}
 

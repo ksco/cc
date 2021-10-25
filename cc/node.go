@@ -70,17 +70,12 @@ type Node struct {
 }
 
 func NewNode(kind NodeKind, val interface{}, tok *Token) *Node {
-	return &Node{
-		Kind: kind,
-		Tok:  tok,
-		Val:  val,
-	}
+	n := &Node{Kind: kind, Tok: tok, Val: val}
+	n.addType()
+	return n
 }
 
 func NewNodeAdd(lhs *Node, rhs *Node, tok *Token) *Node {
-	lhs.AddType()
-	rhs.AddType()
-
 	if lhs.Type.IsInteger() && rhs.Type.IsInteger() {
 		return NewNode(NKAdd, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
 	}
@@ -98,12 +93,14 @@ func NewNodeAdd(lhs *Node, rhs *Node, tok *Token) *Node {
 		Rhs: NewNode(NKNum, lhs.Type.Base.Size, tok),
 	}, tok)
 
-	return NewNode(NKAdd, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+	n := NewNode(NKAdd, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+	n.addType()
+	return n
 }
 
 func NewNodeSub(lhs *Node, rhs *Node, tok *Token) *Node {
-	lhs.AddType()
-	rhs.AddType()
+	lhs.addType()
+	rhs.addType()
 	if lhs.Type.IsInteger() && rhs.Type.IsInteger() {
 		return NewNode(NKSub, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
 	}
@@ -131,48 +128,52 @@ func NewNodeSub(lhs *Node, rhs *Node, tok *Token) *Node {
 	panic(tok.Errorf("invalid operands"))
 }
 
-func (n *Node) AddType() {
+func (n *Node) addType() {
+	if n.Type != nil {
+		return
+	}
+
 	switch n.Kind {
 	case NKNeg, NKAddr, NKDeRef, NKReturn, NKExprStmt:
 		// Unary
 		if node := n.Val.(*Node); node != nil {
-			node.AddType()
+			node.addType()
 		}
 	case NKAdd, NKSub, NKMul, NKDiv,
 		NKEq, NKNe, NKLt, NKLe, NKAssign:
 		// Binary
 		expr := n.Val.(*BinaryExpr)
-		expr.Lhs.AddType()
-		expr.Rhs.AddType()
+		expr.Lhs.addType()
+		expr.Rhs.addType()
 	case NKBlock:
 		nodes := n.Val.([]*Node)
 		for _, node := range nodes {
-			node.AddType()
+			node.addType()
 		}
 	case NKIf:
 		ifClause := n.Val.(*IfClause)
 		if ifClause.Cond != nil {
-			ifClause.Cond.AddType()
+			ifClause.Cond.addType()
 		}
 		if ifClause.Then != nil {
-			ifClause.Then.AddType()
+			ifClause.Then.addType()
 		}
 		if ifClause.Else != nil {
-			ifClause.Else.AddType()
+			ifClause.Else.addType()
 		}
 	case NKFor:
 		forClause := n.Val.(*ForClause)
 		if forClause.Init != nil {
-			forClause.Init.AddType()
+			forClause.Init.addType()
 		}
 		if forClause.Cond != nil {
-			forClause.Cond.AddType()
+			forClause.Cond.addType()
 		}
 		if forClause.Increment != nil {
-			forClause.Increment.AddType()
+			forClause.Increment.addType()
 		}
 		if forClause.Body != nil {
-			forClause.Body.AddType()
+			forClause.Body.addType()
 		}
 	}
 
@@ -185,8 +186,8 @@ func (n *Node) AddType() {
 		}
 	case NKComma:
 		binary := n.Val.(*BinaryExpr)
-		binary.Lhs.AddType()
-		binary.Rhs.AddType()
+		binary.Lhs.addType()
+		binary.Rhs.addType()
 		n.Type = binary.Rhs.Type
 	case NKNeg:
 		n.Type = n.Val.(*Node).Type
@@ -208,7 +209,7 @@ func (n *Node) AddType() {
 		}
 		n.Type = n.Val.(*Node).Type.Base
 	case NKStmtExpr:
-		n.Val.(*Node).AddType()
+		n.Val.(*Node).addType()
 		stmts := n.Val.(*Node).Val.([]*Node)
 		if len(stmts) == 0 {
 			panic(n.Tok.Errorf("statement expression returning void is not supported"))
