@@ -117,7 +117,7 @@ func (g *CodeGenerator) Pop(arg string) {
 
 // Load value in memory pointed by rax to rax
 func (g *CodeGenerator) Load(t *Type) {
-	if t.Kind == TYArray {
+	if t.Kind == TYArray || t.Kind == TYStruct || t.Kind == TYUnion {
 		return
 	}
 
@@ -131,6 +131,15 @@ func (g *CodeGenerator) Load(t *Type) {
 // Store rax to memory pointed by stack top
 func (g *CodeGenerator) Store(t *Type) {
 	g.Pop("%rdi")
+
+	if t.Kind == TYStruct || t.Kind == TYUnion {
+		for i := 0; i < t.Size; i++ {
+			g.Printf("  mov %d(%%rax), %%r8b\n", i)
+			g.Printf("  mov %%r8b, %d(%%rdi)\n", i)
+		}
+
+		return
+	}
 
 	if t.Size == 1 {
 		g.Printf("  mov %%al, (%%rdi)\n")

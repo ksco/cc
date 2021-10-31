@@ -37,4 +37,13 @@ func TestStruct(t *testing.T) {
 
 	a.Eval(3, "int main() { struct t {char a;} x; struct t *y = &x; x.a=3; return y->a; }")
 	a.Eval(3, "int main() { struct t {char a;} x; struct t *y = &x; y->a=3; return x.a; }")
+
+	a.Eval(3, "int main() { struct {int a,b;} x,y; x.a=3; y=x; return y.a; }")
+	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; return y.a; }")
+	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y, *p=&x, *q=&y; *q=*p; return y.a; }")
+	a.Eval(5, "int main() { struct t {char a, b;} x, y; x.a=5; y=x; return y.a; }")
+	a.Eval(3, "int main() { struct {int a,b;} x,y; x.a=3; y=x; return y.a; }")
+	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; return y.a; }")
+	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y, *p=&x, *q=&y; *q=*p; return y.a; }")
+	a.Eval(5, "int main() { struct t {char a, b;} x, y; x.a=5; y=x; return y.a; }")
 }
