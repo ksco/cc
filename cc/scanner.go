@@ -271,7 +271,7 @@ func readStringLiteral(s []rune) (rs []rune, l int, err error) {
 
 func isKeyword(n string) bool {
 	switch n {
-	case "return", "if", "else", "for", "while", "int", "char", "sizeof", "struct":
+	case "return", "if", "else", "for", "while", "int", "char", "sizeof", "struct", "union":
 		return true
 	}
 	return false

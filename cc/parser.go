@@ -190,7 +190,10 @@ func (p *Parser) DeclSpec() *Type {
 
 	if p.Current().Equal(TKKeyword, "struct") {
 		p.Consume(TKKeyword, "struct")
-		return p.StructDecl()
+		return p.StructUnionDecl("struct")
+	} else if p.Current().Equal(TKKeyword, "union") {
+		p.Consume(TKKeyword, "union")
+		return p.StructUnionDecl("union")
 	}
 
 	panic(p.Current().Errorf("type name expected"))
@@ -350,7 +353,10 @@ func (p *Parser) Stmt() *Node {
 
 func (p *Parser) IsTypeName() bool {
 	tok := p.Current()
-	return tok.Equal(TKKeyword, "int") || tok.Equal(TKKeyword, "char") || tok.Equal(TKKeyword, "struct")
+	return tok.Equal(TKKeyword, "int") ||
+		tok.Equal(TKKeyword, "char") ||
+		tok.Equal(TKKeyword, "struct") ||
+		tok.Equal(TKKeyword, "union")
 }
 
 func (p *Parser) Stmts() *Node {
@@ -553,7 +559,7 @@ func (p *Parser) StructMembers() []*StructMember {
 	return ms
 }
 
-func (p *Parser) StructDecl() *Type {
+func (p *Parser) StructUnionDecl(structOrUnion string) *Type {
 	var tag *Token
 	if p.Current().Kind == TKIdentifier {
 		tag = p.Current()
@@ -563,12 +569,18 @@ func (p *Parser) StructDecl() *Type {
 	if tag != nil && !p.Current().Equal(TKPunctuator, "{") {
 		t := p.FindTags(tag.Val.(string))
 		if t == nil {
-			panic(tag.Errorf("unknown struct type"))
+			panic(tag.Errorf("unknown %s type", structOrUnion))
 		}
 		return t
 	}
 	p.Consume(TKPunctuator, "{")
-	t := NewType(TYStruct, nil, &StructVal{
+
+	ty := TYStruct
+	if structOrUnion == "union" {
+		ty = TYUnion
+	}
+
+	t := NewType(ty, nil, &StructVal{
 		Members: p.StructMembers(),
 		Name:    tag,
 	})
@@ -590,6 +602,10 @@ func (p *Parser) Postfix() *Node {
 		}
 
 		memberAccess := func() *Node {
+			if n.Type.Kind != TYStruct && n.Type.Kind != TYUnion {
+				panic(p.Current().Errorf("not a struct or union"))
+			}
+
 			for _, m := range n.Type.Val.(*StructVal).Members {
 				if m.Name == p.Current().Lexeme {
 					return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
@@ -599,9 +615,6 @@ func (p *Parser) Postfix() *Node {
 		}
 		if p.Current().Equal(TKPunctuator, ".") {
 			p.Next()
-			if n.Type.Kind != TYStruct {
-				panic(p.Current().Errorf("not a struct"))
-			}
 			n = memberAccess()
 
 			p.Next()

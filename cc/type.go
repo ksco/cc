@@ -11,6 +11,7 @@ const (
 	TYFunc
 	TYArray
 	TYStruct
+	TYUnion
 )
 
 type StructVal struct {
@@ -54,6 +55,16 @@ func NewType(k TypeKind, base *Type, val interface{}) *Type {
 			align = int(math.Max(float64(align), float64(m.Type.Align)))
 		}
 		size = alignTo(offset, align)
+	case TYUnion:
+		for _, m := range val.(*StructVal).Members {
+			if m.Type.Size > size {
+				size = m.Type.Size
+			}
+			if m.Type.Align > align {
+				align = m.Type.Align
+			}
+		}
+		size = alignTo(size, align)
 	}
 	return &Type{
 		Kind:  k,

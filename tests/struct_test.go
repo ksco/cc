@@ -37,5 +37,4 @@ func TestStruct(t *testing.T) {
 
 	a.Eval(3, "int main() { struct t {char a;} x; struct t *y = &x; x.a=3; return y->a; }")
 	a.Eval(3, "int main() { struct t {char a;} x; struct t *y = &x; y->a=3; return x.a; }")
-
 }
