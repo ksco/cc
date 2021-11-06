@@ -30,17 +30,17 @@ func TestVariable(t *testing.T) {
 	a.Eval(8, "int main() { int x, y; x=3; y=5; return x+y; }")
 	a.Eval(8, "int main() { int x=3, y=5; return x+y; }")
 
-	a.Eval(8, "int main() { int x; return sizeof(x); }")
-	a.Eval(8, "int main() { int x; return sizeof x; }")
+	a.Eval(4, "int main() { int x; return sizeof(x); }")
+	a.Eval(4, "int main() { int x; return sizeof x; }")
 	a.Eval(8, "int main() { int *x; return sizeof(x); }")
-	a.Eval(32, "int main() { int x[4]; return sizeof(x); }")
-	a.Eval(96, "int main() { int x[3][4]; return sizeof(x); }")
-	a.Eval(32, "int main() { int x[3][4]; return sizeof(*x); }")
-	a.Eval(8, "int main() { int x[3][4]; return sizeof(**x); }")
-	a.Eval(9, "int main() { int x[3][4]; return sizeof(**x) + 1; }")
-	a.Eval(9, "int main() { int x[3][4]; return sizeof **x + 1; }")
-	a.Eval(8, "int main() { int x[3][4]; return sizeof(**x + 1); }")
-	a.Eval(8, "int main() { int x=1; return sizeof(x=2); }")
+	a.Eval(16, "int main() { int x[4]; return sizeof(x); }")
+	a.Eval(48, "int main() { int x[3][4]; return sizeof(x); }")
+	a.Eval(16, "int main() { int x[3][4]; return sizeof(*x); }")
+	a.Eval(4, "int main() { int x[3][4]; return sizeof(**x); }")
+	a.Eval(5, "int main() { int x[3][4]; return sizeof(**x) + 1; }")
+	a.Eval(5, "int main() { int x[3][4]; return sizeof **x + 1; }")
+	a.Eval(4, "int main() { int x[3][4]; return sizeof(**x + 1); }")
+	a.Eval(4, "int main() { int x=1; return sizeof(x=2); }")
 	a.Eval(1, "int main() { int x=1; sizeof(x=2); return x; }")
 
 	a.Eval(0, "int x; int main() { return x; }")
@@ -52,8 +52,8 @@ func TestVariable(t *testing.T) {
 	a.Eval(2, "int x[4]; int main() { x[0]=0; x[1]=1; x[2]=2; x[3]=3; return x[2]; }")
 	a.Eval(3, "int x[4]; int main() { x[0]=0; x[1]=1; x[2]=2; x[3]=3; return x[3]; }")
 
-	a.Eval(8, "int x; int main() { return sizeof(x); }")
-	a.Eval(32, "int x[4]; int main() { return sizeof(x); }")
+	a.Eval(4, "int x; int main() { return sizeof(x); }")
+	a.Eval(16, "int x[4]; int main() { return sizeof(x); }")
 
 	a.Eval(0, "int main() { return ({ 0; }); }")
 	a.Eval(2, "int main() { return ({ 0; 1; 2; }); }")
@@ -68,6 +68,9 @@ func TestVariable(t *testing.T) {
 	a.Eval(2, "int main() { int x=2; { int x=3; } { int y=4; return x; }}")
 	a.Eval(3, "int main() { int x=2; { x=3; } return x; }")
 
-	a.Eval(15, "int main() { int x; int y; char z; char *a=&y; char *b=&z; return b-a; }")
+	a.Eval(7, "int main() { int x; int y; char z; char *a=&y; char *b=&z; return b-a; }")
 	a.Eval(1, "int main() { int x; char y; int z; char *a=&y; char *b=&z; return b-a; }")
+
+	a.Eval(8, "int main() { long x; return sizeof(x); }")
+	a.Eval(2, "int main() { short x; return sizeof(x); }")
 }

@@ -20,18 +20,18 @@ func TestStruct(t *testing.T) {
 
 	a.Eval(6, "int main() { struct { struct { char b; } a; } x; x.a.b=6; return x.a.b; }")
 
-	a.Eval(8, "int main() { struct {int a;} x; return sizeof(x); }")
-	a.Eval(16, "int main() { struct {int a; int b;} x; return sizeof(x); }")
-	a.Eval(16, "int main() { struct {int a, b;} x; return sizeof(x); }")
-	a.Eval(24, "int main() { struct {int a[3];} x; return sizeof(x); }")
-	a.Eval(32, "int main() { struct {int a;} x[4]; return sizeof(x); }")
-	a.Eval(48, "int main() { struct {int a[3];} x[2]; return sizeof(x); }")
+	a.Eval(4, "int main() { struct {int a;} x; return sizeof(x); }")
+	a.Eval(8, "int main() { struct {int a; int b;} x; return sizeof(x); }")
+	a.Eval(8, "int main() { struct {int a, b;} x; return sizeof(x); }")
+	a.Eval(12, "int main() { struct {int a[3];} x; return sizeof(x); }")
+	a.Eval(16, "int main() { struct {int a;} x[4]; return sizeof(x); }")
+	a.Eval(24, "int main() { struct {int a[3];} x[2]; return sizeof(x); }")
 	a.Eval(2, "int main() { struct {char a; char b;} x; return sizeof(x); }")
 	a.Eval(0, "int main() { struct {} x; return sizeof(x); }")
-	a.Eval(16, "int main() { struct {char a; int b;} x; return sizeof(x); }")
-	a.Eval(16, "int main() { struct {int a; char b;} x; return sizeof(x); }")
-	a.Eval(16, "int main() { struct t {int a; int b;} x; struct t y; return sizeof(y); }")
-	a.Eval(16, "int main() { struct t {int a; int b;}; struct t y; return sizeof(y); }")
+	a.Eval(8, "int main() { struct {char a; int b;} x; return sizeof(x); }")
+	a.Eval(8, "int main() { struct {int a; char b;} x; return sizeof(x); }")
+	a.Eval(8, "int main() { struct t {int a; int b;} x; struct t y; return sizeof(y); }")
+	a.Eval(8, "int main() { struct t {int a; int b;}; struct t y; return sizeof(y); }")
 	a.Eval(2, "int main() { struct t {char a[2];}; { struct t {char a[4];}; } struct t y; return sizeof(y); }")
 	a.Eval(3, "int main() { struct t {int x;}; int t=1; struct t y; y.x=2; return t+y.x; }")
 
@@ -46,4 +46,7 @@ func TestStruct(t *testing.T) {
 	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y; struct t *z=&y; *z=x; return y.a; }")
 	a.Eval(7, "int main() { struct t {int a,b;}; struct t x; x.a=7; struct t y, *p=&x, *q=&y; *q=*p; return y.a; }")
 	a.Eval(5, "int main() { struct t {char a, b;} x, y; x.a=5; y=x; return y.a; }")
+
+	a.Eval(16, "int main() { struct {char a; long b;} x; return sizeof x; }")
+	a.Eval(4, "int main() { struct {char a; short b;} x; return sizeof x; }")
 }

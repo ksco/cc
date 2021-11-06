@@ -178,14 +178,21 @@ func (p *Parser) FuncDef() *Object {
 }
 
 func (p *Parser) DeclSpec() *Type {
-	if p.Current().Equal(TKKeyword, "char") {
-		p.Consume(TKKeyword, "char")
-		return CharType
+	if p.Current().Equal(TKKeyword, "long") {
+		p.Consume(TKKeyword, "long")
+		return LongType
 	}
-
 	if p.Current().Equal(TKKeyword, "int") {
 		p.Consume(TKKeyword, "int")
 		return IntType
+	}
+	if p.Current().Equal(TKKeyword, "short") {
+		p.Consume(TKKeyword, "short")
+		return ShortType
+	}
+	if p.Current().Equal(TKKeyword, "char") {
+		p.Consume(TKKeyword, "char")
+		return CharType
 	}
 
 	if p.Current().Equal(TKKeyword, "struct") {
@@ -353,7 +360,9 @@ func (p *Parser) Stmt() *Node {
 
 func (p *Parser) IsTypeName() bool {
 	tok := p.Current()
-	return tok.Equal(TKKeyword, "int") ||
+	return tok.Equal(TKKeyword, "long") ||
+		tok.Equal(TKKeyword, "int") ||
+		tok.Equal(TKKeyword, "short") ||
 		tok.Equal(TKKeyword, "char") ||
 		tok.Equal(TKKeyword, "struct") ||
 		tok.Equal(TKKeyword, "union")

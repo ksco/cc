@@ -77,11 +77,7 @@ func (g *CodeGenerator) GenCode() {
 
 		// Prepare function parameters
 		for i, param := range function.Params {
-			bits := 64
-			if param.Type.Size == 1 {
-				bits = 8
-			}
-			g.Printf("  mov %s, %d(%%rbp)\n", ArgRegisters(i, bits), param.Val.(*Local).Offset)
+			g.Printf("  mov %s, %d(%%rbp)\n", argRegisters(i, param.Type.Size*8), param.Val.(*Local).Offset)
 		}
 
 		g.GenStmt(function.Body, o.Name)
@@ -120,12 +116,8 @@ func (g *CodeGenerator) Load(t *Type) {
 	if t.Kind == TYArray || t.Kind == TYStruct || t.Kind == TYUnion {
 		return
 	}
-
-	if t.Size == 1 {
-		g.Printf("  movsbq (%%rax), %%rax\n")
-	} else {
-		g.Printf("  mov (%%rax), %%rax\n")
-	}
+	move := map[int]string{1: "movsbq", 2: "movswq", 4: "movslq", 8: "mov"}[t.Size]
+	g.Printf("  %s (%%rax), %%rax\n", move)
 }
 
 // Store rax to memory pointed by stack top
@@ -141,14 +133,11 @@ func (g *CodeGenerator) Store(t *Type) {
 		return
 	}
 
-	if t.Size == 1 {
-		g.Printf("  mov %%al, (%%rdi)\n")
-	} else {
-		g.Printf("  mov %%rax, (%%rdi)\n")
-	}
+	reg := map[int]string{1: "al", 2: "ax", 4: "eax", 8: "rax"}[t.Size]
+	g.Printf("  mov %%%s, (%%rdi)\n", reg)
 }
 
-// GenAddr puts node's memory address to rax
+// GenAddr puts node's memory address to rax.
 // But if node is a deref expr, the addr effect will be cancelled out
 func (g *CodeGenerator) GenAddr(node *Node, funcName string) {
 	switch node.Kind {
@@ -273,7 +262,7 @@ func (g *CodeGenerator) GenExpr(node *Node, funcName string) {
 			g.Push()
 		}
 		for i := len(fc.Args) - 1; i >= 0; i-- {
-			g.Pop(ArgRegisters(i, 64))
+			g.Pop(argRegisters(i, 64))
 		}
 
 		g.Printf("  mov $0, %%rax\n")
@@ -320,10 +309,14 @@ func (g *CodeGenerator) GenExpr(node *Node, funcName string) {
 	panic(errors.New("invalid expression"))
 }
 
-func ArgRegisters(i, bits int) string {
+func argRegisters(i, bits int) string {
 	switch bits {
 	case 8:
 		return []string{"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"}[i]
+	case 16:
+		return []string{"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"}[i]
+	case 32:
+		return []string{"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"}[i]
 	case 64:
 		return []string{"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}[i]
 	default:

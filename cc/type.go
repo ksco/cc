@@ -5,9 +5,11 @@ import "math"
 type TypeKind int
 
 const (
-	TYChar TypeKind = iota
-	TYInt
+	TYLong TypeKind = iota
 	TYPtr
+	TYInt
+	TYShort
+	TYChar
 	TYFunc
 	TYArray
 	TYStruct
@@ -28,21 +30,27 @@ type Type struct {
 }
 
 func (t *Type) IsInteger() bool {
-	return t.Kind == TYInt || t.Kind == TYChar
+	return t.Kind == TYLong || t.Kind == TYInt || t.Kind == TYShort || t.Kind == TYChar
 }
 
 var (
-	IntType  = NewType(TYInt, nil, nil)
-	CharType = NewType(TYChar, nil, nil)
+	LongType  = NewType(TYLong, nil, nil)
+	ShortType = NewType(TYShort, nil, nil)
+	IntType   = NewType(TYInt, nil, nil)
+	CharType  = NewType(TYChar, nil, nil)
 )
 
 func NewType(k TypeKind, base *Type, val interface{}) *Type {
 	size, align := 1, 1
 	switch k {
 	case TYChar:
-	case TYInt, TYPtr:
-		size = 8
-		align = 8
+		size, align = 1, 1
+	case TYShort:
+		size, align = 2, 2
+	case TYInt:
+		size, align = 4, 4
+	case TYLong, TYPtr:
+		size, align = 8, 8
 	case TYArray:
 		size = base.Size * val.(int)
 		align = base.Align
