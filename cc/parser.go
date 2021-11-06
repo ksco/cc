@@ -160,16 +160,20 @@ func (p *Parser) GlobalVariables() []*Object {
 func (p *Parser) FuncDef() *Object {
 	p.EnterScope()
 	o, params := p.Declarator(p.DeclSpec())
+	f := &Function{}
 
-	p.Consume(TKPunctuator, "{")
+	if p.Current().Equal(TKPunctuator, ";") {
+		p.Consume(TKPunctuator, ";")
+		f.IsDefinition = true
+	} else {
+		p.Consume(TKPunctuator, "{")
+		p.AddLocals(params...)
 
-	p.AddLocals(params...)
-	body := p.Stmts()
-	f := &Function{
-		Body:   body,
-		Locals: p.ScopeVars(),
-		Params: params,
+		f.Body = p.Stmts()
+		f.Locals = p.ScopeVars()
 	}
+
+	f.Params = params
 	p.LeaveScope()
 	return (&Object{
 		Name: o.Name,

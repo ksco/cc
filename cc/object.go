@@ -5,10 +5,11 @@ type Local struct {
 }
 
 type Function struct {
-	Body      *Node
-	Params    []*Object
-	Locals    []*Object
-	StackSize int
+	Body         *Node
+	Params       []*Object
+	Locals       []*Object
+	IsDefinition bool
+	StackSize    int
 }
 
 type Global struct {

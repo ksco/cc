@@ -64,7 +64,7 @@ func (g *CodeGenerator) GenData() {
 func (g *CodeGenerator) GenCode() {
 	for _, o := range g.objects {
 		function, ok := o.Val.(*Function)
-		if !ok {
+		if !ok || function.IsDefinition {
 			continue
 		}
 
