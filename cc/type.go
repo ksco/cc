@@ -14,6 +14,7 @@ const (
 	TYArray
 	TYStruct
 	TYUnion
+	TYUnknown
 )
 
 type StructVal struct {
@@ -31,6 +32,17 @@ type Type struct {
 
 func (t *Type) IsInteger() bool {
 	return t.Kind == TYLong || t.Kind == TYInt || t.Kind == TYShort || t.Kind == TYChar
+}
+
+// Resize recalculates size and align recursively
+func (t *Type) Resize() {
+	if t.Base != nil {
+		t.Base.Resize()
+	}
+
+	n := NewType(t.Kind, t.Base, t.Val)
+	t.Size = n.Size
+	t.Align = n.Align
 }
 
 var (

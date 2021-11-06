@@ -8,7 +8,7 @@ After achieving this goal, I also want to try some optimization techniques.
 
 cc compiles C programs into GNU assembly, currently only tested under macOS 10.15.3 and clang 11.0.
 
-The complication consists of the following stages:
+The compilation consists of the following stages:
 - Scanner
 - Recursive descendent parser
 - Codegen

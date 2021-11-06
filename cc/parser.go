@@ -248,6 +248,26 @@ func (p *Parser) Declarator(base *Type) (*Object, []*Object) {
 	}
 
 	tok := p.Current()
+
+	if tok.Equal(TKPunctuator, "(") {
+		p.Next()
+		nestedType, _ := p.Declarator(NewType(TYUnknown, nil, nil))
+		p.Consume(TKPunctuator, ")")
+		t, params := p.TypeSuffix(base)
+		if nestedType.Type.Kind == TYUnknown {
+			nestedType.Type = t
+		} else {
+			innerType := nestedType.Type
+			for innerType.Base.Kind != TYUnknown {
+				innerType = innerType.Base
+			}
+			innerType.Base = t
+		}
+
+		nestedType.Type.Resize()
+		return nestedType, params
+	}
+
 	if tok.Kind != TKIdentifier {
 		panic(tok.Errorf("expected a variable name, got '%s' instead", tok.Lexeme))
 	}
