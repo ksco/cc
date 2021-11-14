@@ -1,32 +1,28 @@
 package cc
 
+import "C"
 import (
 	"errors"
 	"fmt"
 	"io"
 )
 
-type CodeGenerator struct {
+type Codegen struct {
 	objects    []*Object
 	depth      int
 	labelCount int
 	writer     io.Writer
 }
 
-func (g *CodeGenerator) Printf(format string, a ...interface{}) {
-	_, _ = fmt.Fprintf(g.writer, format, a...)
+func (c *Codegen) Printf(format string, a ...interface{}) {
+	_, _ = fmt.Fprintf(c.writer, format, a...)
 }
 
-func NewCodeGenerator(w io.Writer, objects []*Object) *CodeGenerator {
-	return &CodeGenerator{writer: w, objects: objects}
+func NewCodegen(w io.Writer, objects []*Object) *Codegen {
+	return &Codegen{writer: w, objects: objects}
 }
 
-func (g *CodeGenerator) LabelCount() int {
-	g.labelCount += 1
-	return g.labelCount
-}
-
-func (g *CodeGenerator) Gen() (err error) {
+func (c *Codegen) Gen() (err error) {
 	defer func() {
 		var r interface{}
 		if r = recover(); r == nil {
@@ -38,288 +34,103 @@ func (g *CodeGenerator) Gen() (err error) {
 			panic(r)
 		}
 	}()
-	g.GenCode()
-	g.GenData()
+	c.Printf("(module\n")
+	c.GenCode()
+	c.Printf(")\n")
 	return
 }
 
-func (g *CodeGenerator) GenData() {
-	for _, o := range g.objects {
-		global, ok := o.Val.(*Global)
-		if !ok {
-			continue
-		}
-
-		if global.Val != nil {
-			// String literals
-			g.Printf("%s:\n", o.Name)
-			g.Printf("  .asciz \"%s\"\n", string(global.Val.([]byte)))
-		} else {
-			// Global variable
-			g.Printf("  .comm _%s, %d\n", o.Name, o.Type.Size)
-		}
-	}
-}
-
-func (g *CodeGenerator) GenCode() {
-	for _, o := range g.objects {
+func (c *Codegen) GenCode() {
+	for _, o := range c.objects {
 		function, ok := o.Val.(*Function)
 		if !ok || function.IsDefinition {
 			continue
 		}
 
-		// Prologue
-		g.Printf("  .globl _%s\n", o.Name)
-		g.Printf("_%s:\n", o.Name)
-		g.Printf("  push %%rbp\n")
-		g.Printf("  mov %%rsp, %%rbp\n")
-		g.Printf("  sub $%d, %%rsp\n", function.StackSize)
-
-		// Prepare function parameters
-		for i, param := range function.Params {
-			g.Printf("  mov %s, %d(%%rbp)\n", argRegisters(i, param.Type.Size*8), param.Val.(*Local).Offset)
+		c.Printf("  (func $%s (export \"%s\")", o.Name, o.Name)
+		for _, param := range function.Params {
+			c.Printf(" (param $%s %s)", param.Name, param.Type.WasmType())
 		}
-
-		g.GenStmt(function.Body, o.Name)
-		g.CheckDepth()
-
-		// Epilogue
-		g.Printf(".L.return.%s:\n", o.Name)
-		g.Printf("  mov %%rbp, %%rsp\n")
-		g.Printf("  pop %%rbp\n")
-		g.Printf("  ret\n")
-	}
-}
-
-func (g *CodeGenerator) CheckDepth() {
-	if g.depth != 0 {
-		panic(errors.New("expression not closed"))
-	}
-
-	return
-}
-
-// Push data in rax to stack
-func (g *CodeGenerator) Push() {
-	g.Printf("  push %%rax\n")
-	g.depth++
-}
-
-// Pop data from stack to <arg> register
-func (g *CodeGenerator) Pop(arg string) {
-	g.Printf("  pop %s\n", arg)
-	g.depth--
-}
-
-// Load value in memory pointed by rax to rax
-func (g *CodeGenerator) Load(t *Type) {
-	if t.Kind == TYArray || t.Kind == TYStruct || t.Kind == TYUnion {
-		return
-	}
-	move := map[int]string{1: "movsbq", 2: "movswq", 4: "movslq", 8: "mov"}[t.Size]
-	g.Printf("  %s (%%rax), %%rax\n", move)
-}
-
-// Store rax to memory pointed by stack top
-func (g *CodeGenerator) Store(t *Type) {
-	g.Pop("%rdi")
-
-	if t.Kind == TYStruct || t.Kind == TYUnion {
-		for i := 0; i < t.Size; i++ {
-			g.Printf("  mov %d(%%rax), %%r8b\n", i)
-			g.Printf("  mov %%r8b, %d(%%rdi)\n", i)
+		c.Printf(" (result i32)\n")
+		for _, local := range function.Locals {
+			c.Printf("    (local $%s %s)\n", local.Name, local.Type.WasmType())
 		}
-
-		return
+		c.GenStmt(function.Body)
+		c.Printf("    return\n")
+		c.Printf("  )\n")
 	}
-
-	reg := map[int]string{1: "al", 2: "ax", 4: "eax", 8: "rax"}[t.Size]
-	g.Printf("  mov %%%s, (%%rdi)\n", reg)
 }
 
-// GenAddr puts node's memory address to rax.
-// But if node is a deref expr, the addr effect will be cancelled out
-func (g *CodeGenerator) GenAddr(node *Node, funcName string) {
+func (c *Codegen) GenStmt(node *Node) {
 	switch node.Kind {
-	case NKVariable:
-		if _, ok := node.Val.(*Object).Val.(*Local); ok {
-			g.Printf("  lea %d(%%rbp), %%rax\n", node.Val.(*Object).Val.(*Local).Offset)
-		} else if node.Val.(*Object).Val.(*Global).Val != nil {
-			g.Printf("  lea %s(%%rip), %%rax\n", node.Val.(*Object).Name)
-		} else {
-			g.Printf("  lea _%s(%%rip), %%rax\n", node.Val.(*Object).Name)
-		}
-		return
-	case NKDeRef:
-		g.GenExpr(node.Val.(*Node), funcName)
-		return
-	case NKComma:
-		binary := node.Val.(*BinaryExpr)
-		g.GenExpr(binary.Lhs, funcName)
-		g.GenAddr(binary.Rhs, funcName)
-		return
-	case NKMember:
-		g.GenAddr(node.Val.(*StructMemberAccess).Struct, funcName)
-		g.Printf("  add $%d, %%rax\n", node.Val.(*StructMemberAccess).Member.Offset)
-		return
-	}
-
-	panic(errors.New("not a lvalue"))
-}
-
-func (g *CodeGenerator) GenStmt(node *Node, funcName string) {
-	switch node.Kind {
-	case NKIf:
-		c := g.LabelCount()
-		ifClause := node.Val.(*IfClause)
-		g.GenExpr(ifClause.Cond, funcName)
-		g.Printf("  cmp $0, %%rax\n")
-		g.Printf("  je .L.else.%d\n", c)
-		g.GenStmt(ifClause.Then, funcName)
-		g.Printf("  jmp .L.end.%d\n", c)
-		g.Printf(".L.else.%d:\n", c)
-		if ifClause.Else != nil {
-			g.GenStmt(ifClause.Else, funcName)
-		}
-		g.Printf(".L.end.%d:\n", c)
-		return
-	case NKFor:
-		c := g.LabelCount()
-		forClause := node.Val.(*ForClause)
-		if forClause.Init != nil {
-			g.GenStmt(forClause.Init, funcName)
-		}
-
-		g.Printf(".L.begin.%d:\n", c)
-		if forClause.Cond != nil {
-			g.GenExpr(forClause.Cond, funcName)
-			g.Printf("  cmp $0, %%rax\n")
-			g.Printf("  je  .L.end.%d\n", c)
-		}
-		g.GenStmt(forClause.Body, funcName)
-		if forClause.Increment != nil {
-			g.GenExpr(forClause.Increment, funcName)
-		}
-		g.Printf("  jmp .L.begin.%d\n", c)
-		g.Printf(".L.end.%d:\n", c)
-		return
 	case NKBlock:
 		for _, n := range node.Val.([]*Node) {
-			g.GenStmt(n, funcName)
+			c.GenStmt(n)
 		}
 		return
 	case NKReturn:
-		g.GenExpr(node.Val.(*Node), funcName)
-		g.Printf("  jmp .L.return.%s\n", funcName)
+		c.GenExpr(node.Val.(*Node))
+		c.Printf("    return\n")
 		return
 	case NKExprStmt:
-		g.GenExpr(node.Val.(*Node), funcName)
+		c.GenExpr(node.Val.(*Node))
 		return
 	}
 
 	panic(errors.New("invalid statement"))
 }
 
-func (g *CodeGenerator) GenExpr(node *Node, funcName string) {
+func (c *Codegen) GenExpr(node *Node) {
 	switch node.Kind {
 	case NKNum:
-		g.Printf("  mov $%d, %%rax\n", node.Val)
+		c.Printf("    %s.const %d\n", node.Type.WasmType(), node.Val)
 		return
 	case NKNeg:
-		g.GenExpr(node.Val.(*Node), funcName)
-		g.Printf("  neg %%rax\n")
+		c.Printf("    %s.const 0\n", node.Type.WasmType())
+		c.GenExpr(node.Val.(*Node))
+		c.Printf("    %s.sub\n", node.Type.WasmType())
 		return
-	case NKVariable, NKMember:
-		g.GenAddr(node, funcName)
-		g.Load(node.Type)
-		return
-	case NKDeRef:
-		g.GenExpr(node.Val.(*Node), funcName)
-		g.Load(node.Type)
-		return
-	case NKAddr:
-		g.GenAddr(node.Val.(*Node), funcName)
+	case NKVariable:
+		c.Printf("    local.get $%s\n", node.Val.(*Object).Name)
 		return
 	case NKAssign:
 		binary := node.Val.(*BinaryExpr)
-		g.GenAddr(binary.Lhs, funcName)
-		g.Push()
-		g.GenExpr(binary.Rhs, funcName)
-		g.Store(node.Type)
-		return
-	case NKComma:
-		binary := node.Val.(*BinaryExpr)
-		g.GenExpr(binary.Lhs, funcName)
-		g.GenExpr(binary.Rhs, funcName)
-		return
-	case NKStmtExpr:
-		g.GenStmt(node.Val.(*Node), funcName)
-		return
-	case NKFuncCall:
-		fc := node.Val.(*FuncCall)
-		for _, arg := range fc.Args {
-			g.GenExpr(arg, funcName)
-			g.Push()
-		}
-		for i := len(fc.Args) - 1; i >= 0; i-- {
-			g.Pop(argRegisters(i, 64))
-		}
-
-		g.Printf("  mov $0, %%rax\n")
-		g.Printf("  call %s\n", "_"+fc.Name)
+		c.GenExpr(binary.Rhs)
+		c.Printf("    local.set $%s\n", binary.Lhs.Val.(*Object).Name)
+		c.Printf("    local.get $%s\n", binary.Lhs.Val.(*Object).Name)
 		return
 	}
 
 	binary := node.Val.(*BinaryExpr)
-	g.GenExpr(binary.Rhs, funcName)
-	g.Push()
-	g.GenExpr(binary.Lhs, funcName)
-	g.Pop("%rdi")
+	c.GenExpr(binary.Lhs)
+	c.GenExpr(binary.Rhs)
 
 	switch node.Kind {
 	case NKAdd:
-		g.Printf("  add %%rdi, %%rax\n")
+		c.Printf("    %s.add\n", node.Type.WasmType())
 		return
 	case NKSub:
-		g.Printf("  sub %%rdi, %%rax\n")
+		c.Printf("    %s.sub\n", node.Type.WasmType())
 		return
 	case NKMul:
-		g.Printf("  imul %%rdi, %%rax\n")
+		c.Printf("    %s.mul\n", node.Type.WasmType())
 		return
 	case NKDiv:
-		g.Printf("  cqo\n")
-		g.Printf("  idiv %%rdi\n")
+		c.Printf("    %s.div_s\n", node.Type.WasmType())
 		return
-	case NKEq, NKNe, NKLt, NKLe:
-		g.Printf("  cmp %%rdi, %%rax\n")
-		if node.Kind == NKEq {
-			g.Printf("  sete %%al\n")
-		} else if node.Kind == NKNe {
-			g.Printf("  setne %%al\n")
-		} else if node.Kind == NKLt {
-			g.Printf("  setl %%al\n")
-		} else if node.Kind == NKLe {
-			g.Printf("  setle %%al\n")
-		}
-
-		g.Printf("  movzb %%al, %%rax\n")
+	case NKEq:
+		c.Printf("    %s.eq\n", node.Type.WasmType())
+		return
+	case NKNe:
+		c.Printf("    %s.ne\n", node.Type.WasmType())
+		return
+	case NKLt:
+		c.Printf("    %s.lt_s\n", node.Type.WasmType())
+		return
+	case NKLe:
+		c.Printf("    %s.le_s\n", node.Type.WasmType())
 		return
 	}
 
 	panic(errors.New("invalid expression"))
-}
-
-func argRegisters(i, bits int) string {
-	switch bits {
-	case 8:
-		return []string{"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"}[i]
-	case 16:
-		return []string{"%di", "%si", "%dx", "%cx", "%r8w", "%r9w"}[i]
-	case 32:
-		return []string{"%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"}[i]
-	case 64:
-		return []string{"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"}[i]
-	default:
-		return ""
-	}
 }

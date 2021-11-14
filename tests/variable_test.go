@@ -4,19 +4,19 @@ import "testing"
 
 func TestVariable(t *testing.T) {
 	a := Assert{t: t}
-	a.Eval(3, "int main() { int a; a=3; return a; }")
-	a.Eval(3, "int main() { int a=3; return a; }")
-	a.Eval(8, "int main() { int a=3; int z=5; return a+z; }")
+	a.Eval(int32(3), "int main() { int a; a=3; return a; }")
+	a.Eval(int32(3), "int main() { int a=3; return a; }")
+	a.Eval(int32(8), "int main() { int a=3; int z=5; return a+z; }")
 
-	a.Eval(1, "int main() { return 1; 2; 3; }")
-	a.Eval(2, "int main() { 1; return 2; 3; }")
-	a.Eval(3, "int main() { 1; 2; return 3; }")
+	a.Eval(int32(1), "int main() { return 1; 2; 3; }")
+	a.Eval(int32(2), "int main() { 1; return 2; 3; }")
+	a.Eval(int32(3), "int main() { 1; 2; return 3; }")
 
-	a.Eval(3, "int main() { int a=3; return a; }")
-	a.Eval(8, "int main() { int a=3; int z=5; return a+z; }")
-	a.Eval(6, "int main() { int a; int b; a=b=3; return a+b; }")
-	a.Eval(3, "int main() { int foo=3; return foo; }")
-	a.Eval(8, "int main() { int foo123=3; int bar=5; return foo123+bar; }")
+	a.Eval(int32(3), "int main() { int a=3; return a; }")
+	a.Eval(int32(8), "int main() { int a=3; int z=5; return a+z; }")
+	a.Eval(int32(6), "int main() { int a; int b; a=b=3; return a+b; }")
+	a.Eval(int32(3), "int main() { int foo=3; return foo; }")
+	a.Eval(int32(8), "int main() { int foo123=3; int bar=5; return foo123+bar; }")
 
 	a.Eval(3, "int main() { int x=3; return *&x; }")
 	a.Eval(3, "int main() { int x=3; int *y=&x; int **z=&y; return **z; }")

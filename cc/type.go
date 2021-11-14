@@ -1,6 +1,9 @@
 package cc
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type TypeKind int
 
@@ -32,6 +35,10 @@ type Type struct {
 
 func (t *Type) IsInteger() bool {
 	return t.Kind == TYLong || t.Kind == TYInt || t.Kind == TYShort || t.Kind == TYChar
+}
+
+func (t *Type) WasmType() string {
+	return fmt.Sprintf("i%d", int(math.Min(float64(t.Size), 4))*8)
 }
 
 // Resize recalculates size and align recursively

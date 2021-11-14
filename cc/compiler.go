@@ -17,7 +17,7 @@ func Compile(w io.Writer, s []rune) error {
 		return err
 	}
 
-	gen := NewCodeGenerator(w, objects)
+	gen := NewCodegen(w, objects)
 	if err = gen.Gen(); err != nil {
 		return err
 	}
