@@ -36,7 +36,7 @@ func (o *Object) AlignLocals() *Object {
 	for _, l := range f.Locals {
 		offset += l.Type.Size
 		offset = alignTo(offset, l.Type.Align)
-		l.Val = &Local{Offset: -offset}
+		l.Val = &Local{Offset: offset}
 	}
 	f.StackSize = alignTo(offset, 16)
 	return o
