@@ -66,9 +66,9 @@ func NewType(k TypeKind, base *Type, val interface{}) *Type {
 		size, align = 1, 1
 	case TYShort:
 		size, align = 2, 2
-	case TYInt:
+	case TYInt, TYPtr:
 		size, align = 4, 4
-	case TYLong, TYPtr:
+	case TYLong:
 		size, align = 8, 8
 	case TYArray:
 		size = base.Size * val.(int)

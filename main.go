@@ -14,11 +14,13 @@ func main() {
 		f, err := os.Open(fileName)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
+			return
 		}
 
 		contentBytes, err := ioutil.ReadAll(f)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err)
+			return
 		}
 		content = string(contentBytes)
 	} else if len(os.Args) == 3 && (os.Args[1] == "-c" || os.Args[1] == "--code") {

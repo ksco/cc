@@ -62,7 +62,7 @@ func (p *Parser) ScopeVars() []*Object {
 }
 
 func (p *Parser) PushVarScope(o *Object) {
-	p.scopes[0].vars = append([]*Object{o}, p.scopes[0].vars...)
+	p.scopes[0].vars = append(p.scopes[0].vars, o)
 }
 
 func (p *Parser) PushTagScope(t *Type) {

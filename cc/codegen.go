@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 const StackSize = 65536
@@ -37,6 +38,7 @@ func (c *Codegen) Gen() (err error) {
 		}
 	}()
 	c.Printf("(module\n")
+	c.GenData()
 	c.GenCode()
 
 	// TODO: It ought to be enough to everyone.
@@ -45,6 +47,30 @@ func (c *Codegen) Gen() (err error) {
 	c.Printf("  (global $bp i32       (i32.const %d))\n", StackSize)
 	c.Printf(")\n")
 	return
+}
+
+func (c *Codegen) GenData() int {
+	memoryOffset := 0
+	for _, o := range c.objects {
+		global, ok := o.Val.(*Global)
+		if !ok {
+			continue
+		}
+
+		if global.Val != nil {
+			// String literals
+			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, global.Val.([]byte))
+			global.Val.(*Global).Offset = memoryOffset
+			memoryOffset += len(global.Val.([]byte))
+		} else {
+			// Global variables
+			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, strings.Repeat("\\00", o.Type.Size))
+			global.Offset = memoryOffset
+			memoryOffset += o.Type.Size
+		}
+	}
+
+	return memoryOffset
 }
 
 func (c *Codegen) GenCode() {
@@ -102,8 +128,8 @@ func (c *Codegen) GenExpr(node *Node) {
 		c.Printf("    %s.sub\n", node.Type.WasmType())
 		return
 	case NKVariable:
-		c.Printf("    global.get $sp\n")
-		c.Printf("    %s.load offset=%d\n", node.Type.WasmType(), node.Val.(*Object).Val.(*Local).Offset)
+		c.GenAddr(node)
+		c.Printf("    %s.load\n", node.Type.WasmType())
 		return
 	case NKDeRef:
 		c.GenExpr(node.Val.(*Node))
@@ -114,11 +140,10 @@ func (c *Codegen) GenExpr(node *Node) {
 		return
 	case NKAssign:
 		binary := node.Val.(*BinaryExpr)
-		c.Printf("    global.get $sp\n")
+		c.GenAddr(binary.Lhs)
 		c.GenExpr(binary.Rhs)
-		c.Printf("    %s.store offset=%d\n", binary.Lhs.Type.WasmType(), binary.Lhs.Val.(*Object).Val.(*Local).Offset)
-		c.Printf("    global.get $sp\n")
-		c.Printf("    %s.load offset=%d\n", binary.Lhs.Type.WasmType(), binary.Lhs.Val.(*Object).Val.(*Local).Offset)
+		c.Printf("    %s.store\n", node.Type.WasmType())
+		c.GenExpr(binary.Lhs)
 		return
 	}
 
@@ -159,9 +184,18 @@ func (c *Codegen) GenExpr(node *Node) {
 func (c *Codegen) GenAddr(node *Node) {
 	switch node.Kind {
 	case NKVariable:
-		c.Printf("    global.get $sp\n")
-		c.Printf("    i32.const %d\n", node.Val.(*Object).Val.(*Local).Offset)
-		c.Printf("    i32.add\n")
+		if _, ok := node.Val.(*Object).Val.(*Local); ok {
+			c.Printf("    global.get $sp\n")
+			c.Printf("    i32.const %d\n", node.Val.(*Object).Val.(*Local).Offset)
+			c.Printf("    i32.add\n")
+		} else if _, ok := node.Val.(*Object).Val.(*Global); ok {
+			c.Printf("    i32.const %d\n", node.Val.(*Object).Val.(*Global).Offset)
+		} else {
+			panic(errors.New("not a lvalue"))
+		}
+		return
+	case NKDeRef:
+		c.GenExpr(node.Val.(*Node))
 		return
 	}
 

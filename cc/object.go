@@ -13,7 +13,8 @@ type Function struct {
 }
 
 type Global struct {
-	Val interface{}
+	Offset int
+	Val    interface{}
 }
 
 type Object struct {
