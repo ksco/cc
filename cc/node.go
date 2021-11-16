@@ -192,7 +192,7 @@ func (n *Node) addType() {
 	case NKNeg:
 		n.Type = n.Val.(*Node).Type
 	case NKEq, NKNe, NKLt, NKLe, NKNum, NKFuncCall:
-		n.Type = LongType
+		n.Type = IntType
 	case NKVariable:
 		n.Type = n.Val.(*Object).Type
 	case NKMember:

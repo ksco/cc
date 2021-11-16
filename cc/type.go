@@ -1,7 +1,6 @@
 package cc
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -38,7 +37,16 @@ func (t *Type) IsInteger() bool {
 }
 
 func (t *Type) WasmType() string {
-	return fmt.Sprintf("i%d", int(math.Min(float64(t.Size), 4))*8)
+	switch t.Kind {
+	case TYLong:
+		return "i64"
+	case TYInt, TYPtr:
+		return "i32"
+	case TYArray:
+		return t.Base.WasmType()
+	default:
+		return "i32"
+	}
 }
 
 // Resize recalculates size and align recursively

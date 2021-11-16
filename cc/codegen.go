@@ -145,6 +145,14 @@ func (c *Codegen) GenExpr(node *Node) {
 		c.Printf("    %s.store\n", node.Type.WasmType())
 		c.GenExpr(binary.Lhs)
 		return
+	case NKComma:
+		binary := node.Val.(*BinaryExpr)
+		c.GenExpr(binary.Lhs)
+		c.GenExpr(binary.Rhs)
+		return
+	case NKStmtExpr:
+		c.GenStmt(node.Val.(*Node))
+		return
 	}
 
 	binary := node.Val.(*BinaryExpr)
