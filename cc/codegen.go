@@ -52,20 +52,19 @@ func (c *Codegen) Gen() (err error) {
 func (c *Codegen) GenData() int {
 	memoryOffset := 0
 	for _, o := range c.objects {
-		global, ok := o.Val.(*Global)
-		if !ok {
+		if o.Kind != ObjectKindGlobal {
 			continue
 		}
 
-		if global.Val != nil {
+		if o.Global.Val != nil {
 			// String literals
-			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, global.Val.([]byte))
-			global.Val.(*Global).Offset = memoryOffset
-			memoryOffset += len(global.Val.([]byte))
+			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, o.Global.Val.([]byte))
+			o.Global.Offset = memoryOffset
+			memoryOffset += len(o.Global.Val.([]byte))
 		} else {
 			// Global variables
 			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, strings.Repeat("\\00", o.Type.Size))
-			global.Offset = memoryOffset
+			o.Global.Offset = memoryOffset
 			memoryOffset += o.Type.Size
 		}
 	}
@@ -75,24 +74,23 @@ func (c *Codegen) GenData() int {
 
 func (c *Codegen) GenCode() {
 	for _, o := range c.objects {
-		function, ok := o.Val.(*Function)
-		if !ok || function.IsDefinition {
+		if o.Kind != ObjectKindFunction || o.Function.IsDefinition {
 			continue
 		}
 
 		c.Printf("  (func $%s (export \"%s\")", o.Name, o.Name)
-		for _, param := range function.Params {
+		for _, param := range o.Function.Params {
 			c.Printf(" (param $%s %s)", param.Name, param.Type.WasmType())
 		}
 		c.Printf(" (result i32)\n")
 
 		// Prologue
 		c.Printf("    global.get $sp\n")
-		c.Printf("    i32.const %d\n", function.StackSize)
+		c.Printf("    i32.const %d\n", o.Function.StackSize)
 		c.Printf("    i32.sub\n")
 		c.Printf("    global.set $sp\n")
 
-		c.GenStmt(function.Body)
+		c.GenStmt(o.Function.Body)
 		c.Printf("    return\n")
 		c.Printf("  )\n")
 	}
@@ -100,17 +98,17 @@ func (c *Codegen) GenCode() {
 
 func (c *Codegen) GenStmt(node *Node) {
 	switch node.Kind {
-	case NKBlock:
-		for _, n := range node.Val.([]*Node) {
+	case NKBlock, NKStmtsExpr:
+		for _, n := range node.Block.Stmts {
 			c.GenStmt(n)
 		}
 		return
 	case NKReturn:
-		c.GenExpr(node.Val.(*Node))
+		c.GenExpr(node.Unary.Expr)
 		c.Printf("    return\n")
 		return
 	case NKExprStmt:
-		c.GenExpr(node.Val.(*Node))
+		c.GenExpr(node.Unary.Expr)
 		return
 	}
 
@@ -120,11 +118,11 @@ func (c *Codegen) GenStmt(node *Node) {
 func (c *Codegen) GenExpr(node *Node) {
 	switch node.Kind {
 	case NKNum:
-		c.Printf("    %s.const %d\n", node.Type.WasmType(), node.Val)
+		c.Printf("    %s.const %d\n", node.Type.WasmType(), node.Num.Val)
 		return
 	case NKNeg:
 		c.Printf("    %s.const 0\n", node.Type.WasmType())
-		c.GenExpr(node.Val.(*Node))
+		c.GenExpr(node.Unary.Expr)
 		c.Printf("    %s.sub\n", node.Type.WasmType())
 		return
 	case NKVariable:
@@ -132,32 +130,29 @@ func (c *Codegen) GenExpr(node *Node) {
 		c.Printf("    %s.load\n", node.Type.WasmType())
 		return
 	case NKDeRef:
-		c.GenExpr(node.Val.(*Node))
+		c.GenExpr(node.Unary.Expr)
 		c.Printf("    %s.load\n", node.Type.WasmType())
 		return
 	case NKAddr:
-		c.GenAddr(node.Val.(*Node))
+		c.GenAddr(node.Unary.Expr)
 		return
 	case NKAssign:
-		binary := node.Val.(*BinaryExpr)
-		c.GenAddr(binary.Lhs)
-		c.GenExpr(binary.Rhs)
+		c.GenAddr(node.Binary.Lhs)
+		c.GenExpr(node.Binary.Rhs)
 		c.Printf("    %s.store\n", node.Type.WasmType())
-		c.GenExpr(binary.Lhs)
+		c.GenExpr(node.Binary.Lhs)
 		return
 	case NKComma:
-		binary := node.Val.(*BinaryExpr)
-		c.GenExpr(binary.Lhs)
-		c.GenExpr(binary.Rhs)
+		c.GenExpr(node.Binary.Lhs)
+		c.GenExpr(node.Binary.Rhs)
 		return
-	case NKStmtExpr:
-		c.GenStmt(node.Val.(*Node))
+	case NKStmtsExpr:
+		c.GenStmt(node)
 		return
 	}
 
-	binary := node.Val.(*BinaryExpr)
-	c.GenExpr(binary.Lhs)
-	c.GenExpr(binary.Rhs)
+	c.GenExpr(node.Binary.Lhs)
+	c.GenExpr(node.Binary.Rhs)
 
 	switch node.Kind {
 	case NKAdd:
@@ -192,18 +187,19 @@ func (c *Codegen) GenExpr(node *Node) {
 func (c *Codegen) GenAddr(node *Node) {
 	switch node.Kind {
 	case NKVariable:
-		if _, ok := node.Val.(*Object).Val.(*Local); ok {
+		switch node.Variable.Object.Kind {
+		case ObjectKindLocal:
 			c.Printf("    global.get $sp\n")
-			c.Printf("    i32.const %d\n", node.Val.(*Object).Val.(*Local).Offset)
+			c.Printf("    i32.const %d\n", node.Variable.Object.Local.Offset)
 			c.Printf("    i32.add\n")
-		} else if _, ok := node.Val.(*Object).Val.(*Global); ok {
-			c.Printf("    i32.const %d\n", node.Val.(*Object).Val.(*Global).Offset)
-		} else {
+		case ObjectKindGlobal:
+			c.Printf("    i32.const %d\n", node.Variable.Object.Global.Offset)
+		default:
 			panic(errors.New("not a lvalue"))
 		}
 		return
 	case NKDeRef:
-		c.GenExpr(node.Val.(*Node))
+		c.GenExpr(node.Unary.Expr)
 		return
 	}
 

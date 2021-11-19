@@ -4,14 +4,15 @@ import "testing"
 
 func TestString(t *testing.T) {
 	a := Assert{t: t}
-	a.Eval(0, `int main() { return ""[0]; }`)
-	a.Eval(1, `int main() { return sizeof(""); }`)
+	a.Eval(int32(0), `int main() { return ""[0]; }`)
+	a.Eval(int32(1), `int main() { return sizeof(""); }`)
 
-	a.Eval(97, `int main() { return "abc"[0]; }`)
-	a.Eval(98, `int main() { return "abc"[1]; }`)
-	a.Eval(99, `int main() { return "abc"[2]; }`)
-	a.Eval(0, `int main() { return "abc"[3]; }`)
-	a.Eval(4, `int main() { return sizeof("abc"); }`)
+	a.Eval(int32(97), `int main() { char* a = "abc"; return a[0]; }`)
+	a.Eval(int32(97), `int main() { return "abc"[0]; }`)
+	a.Eval(int32(98), `int main() { return "abc"[1]; }`)
+	a.Eval(int32(99), `int main() { return "abc"[2]; }`)
+	a.Eval(int32(0), `int main() { return "abc"[3]; }`)
+	a.Eval(int32(4), `int main() { return sizeof("abc"); }`)
 
 	a.Eval(7, `int main() { return "\a"[0]; }`)
 	a.Eval(8, `int main() { return "\b"[0]; }`)
@@ -48,5 +49,4 @@ func TestString(t *testing.T) {
 	a.Eval(1, `int main() { char x; return sizeof(x); }`)
 	a.Eval(10, `int main() { char x[10]; return sizeof(x); }`)
 	a.Eval(1, `int main() { return sub_char(7, 3, 3); } int sub_char(char a, char b, char c) { return a-b-c; }`)
-
 }

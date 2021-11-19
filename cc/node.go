@@ -3,29 +3,29 @@ package cc
 type NodeKind int
 
 const (
-	NKAdd      NodeKind = iota // +
-	NKSub                      // -
-	NKMul                      // *
-	NKDiv                      // /
-	NKNeg                      // unary -
-	NKEq                       // ==
-	NKNe                       // !=
-	NKLt                       // <
-	NKLe                       // <=
-	NKAssign                   // =
-	NKComma                    // ,
-	NKMember                   // .
-	NKAddr                     // unary &
-	NKDeRef                    // unary *
-	NKReturn                   // "return"
-	NKIf                       // "if"
-	NKFor                      // "for", "while"
-	NKBlock                    // { ... }
-	NKFuncCall                 // function call
-	NKExprStmt                 // expression stmt
-	NKStmtExpr                 // stmt expression
-	NKVariable                 // Variable
-	NKNum                      // integer
+	NKAdd       NodeKind = iota // +
+	NKSub                       // -
+	NKMul                       // *
+	NKDiv                       // /
+	NKNeg                       // unary -
+	NKEq                        // ==
+	NKNe                        // !=
+	NKLt                        // <
+	NKLe                        // <=
+	NKAssign                    // =
+	NKComma                     // ,
+	NKMember                    // .
+	NKAddr                      // unary &
+	NKDeRef                     // unary *
+	NKReturn                    // "return"
+	NKIf                        // "if"
+	NKFor                       // "for", "while"
+	NKBlock                     // { ... }
+	NKFuncCall                  // function call
+	NKExprStmt                  // expression stmt
+	NKStmtsExpr                 // stmts expression
+	NKVariable                  // Variable
+	NKNum                       // integer
 )
 
 type StructMember struct {
@@ -47,9 +47,13 @@ type ForClause struct {
 	Body      *Node
 }
 
-type BinaryExpr struct {
+type Binary struct {
 	Lhs *Node
 	Rhs *Node
+}
+
+type Unary struct {
+	Expr *Node
 }
 
 type FuncCall struct {
@@ -57,27 +61,83 @@ type FuncCall struct {
 	Args []*Node
 }
 
-type StructMemberAccess struct {
+type MemberAccess struct {
 	Struct *Node
 	Member *StructMember
+}
+
+type Block struct {
+	Stmts []*Node
+}
+
+type Variable struct {
+	Object *Object
+}
+
+type Number struct {
+	Val int
 }
 
 type Node struct {
 	Kind NodeKind
 	Type *Type
 	Tok  *Token
-	Val  interface{}
+
+	// Only one of the following fields should be set.
+	Num          *Number
+	Variable     *Variable
+	IfClause     *IfClause
+	ForClause    *ForClause
+	Binary       *Binary
+	Unary        *Unary
+	FuncCall     *FuncCall
+	MemberAccess *MemberAccess
+	Block        *Block
 }
 
-func NewNode(kind NodeKind, val interface{}, tok *Token) *Node {
-	n := &Node{Kind: kind, Tok: tok, Val: val}
+type NodeVal interface {
+	IsNodeVal()
+}
+
+func (*Number) IsNodeVal()       {}
+func (*Variable) IsNodeVal()     {}
+func (*IfClause) IsNodeVal()     {}
+func (*ForClause) IsNodeVal()    {}
+func (*Binary) IsNodeVal()       {}
+func (*Unary) IsNodeVal()        {}
+func (*FuncCall) IsNodeVal()     {}
+func (*MemberAccess) IsNodeVal() {}
+func (*Block) IsNodeVal()        {}
+
+func NewNode(kind NodeKind, val NodeVal, tok *Token) *Node {
+	n := &Node{Kind: kind, Tok: tok}
+	switch kind {
+	case NKAdd, NKSub, NKMul, NKDiv, NKEq, NKNe, NKLt, NKLe, NKAssign, NKComma:
+		n.Binary = val.(*Binary)
+	case NKNeg, NKAddr, NKDeRef, NKReturn, NKExprStmt:
+		n.Unary = val.(*Unary)
+	case NKMember:
+		n.MemberAccess = val.(*MemberAccess)
+	case NKIf:
+		n.IfClause = val.(*IfClause)
+	case NKFor:
+		n.ForClause = val.(*ForClause)
+	case NKBlock, NKStmtsExpr:
+		n.Block = val.(*Block)
+	case NKFuncCall:
+		n.FuncCall = val.(*FuncCall)
+	case NKNum:
+		n.Num = val.(*Number)
+	case NKVariable:
+		n.Variable = val.(*Variable)
+	}
 	n.addType()
 	return n
 }
 
 func NewNodeAdd(lhs *Node, rhs *Node, tok *Token) *Node {
 	if lhs.Type.IsInteger() && rhs.Type.IsInteger() {
-		return NewNode(NKAdd, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+		return NewNode(NKAdd, &Binary{Lhs: lhs, Rhs: rhs}, tok)
 	}
 
 	if lhs.Type.Base != nil && rhs.Type.Base != nil {
@@ -88,12 +148,12 @@ func NewNodeAdd(lhs *Node, rhs *Node, tok *Token) *Node {
 		rhs, lhs = lhs, rhs
 	}
 
-	rhs = NewNode(NKMul, &BinaryExpr{
+	rhs = NewNode(NKMul, &Binary{
 		Lhs: rhs,
-		Rhs: NewNode(NKNum, lhs.Type.Base.Size, tok),
+		Rhs: NewNode(NKNum, &Number{Val: lhs.Type.Base.Size}, tok),
 	}, tok)
 
-	n := NewNode(NKAdd, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+	n := NewNode(NKAdd, &Binary{Lhs: lhs, Rhs: rhs}, tok)
 	n.addType()
 	return n
 }
@@ -102,24 +162,24 @@ func NewNodeSub(lhs *Node, rhs *Node, tok *Token) *Node {
 	lhs.addType()
 	rhs.addType()
 	if lhs.Type.IsInteger() && rhs.Type.IsInteger() {
-		return NewNode(NKSub, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+		return NewNode(NKSub, &Binary{Lhs: lhs, Rhs: rhs}, tok)
 	}
 
 	if lhs.Type.Base != nil && rhs.Type.IsInteger() {
-		rhs = NewNode(NKMul, &BinaryExpr{
+		rhs = NewNode(NKMul, &Binary{
 			Lhs: rhs,
-			Rhs: NewNode(NKNum, lhs.Type.Base.Size, tok),
+			Rhs: NewNode(NKNum, &Number{Val: lhs.Type.Base.Size}, tok),
 		}, tok)
 
-		return NewNode(NKSub, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok)
+		return NewNode(NKSub, &Binary{Lhs: lhs, Rhs: rhs}, tok)
 	}
 
 	if lhs.Type.Base != nil && rhs.Type.Base != nil {
 		return NewNode(
 			NKDiv,
-			&BinaryExpr{
-				Lhs: NewNode(NKSub, &BinaryExpr{Lhs: lhs, Rhs: rhs}, tok),
-				Rhs: NewNode(NKNum, lhs.Type.Base.Size, tok),
+			&Binary{
+				Lhs: NewNode(NKSub, &Binary{Lhs: lhs, Rhs: rhs}, tok),
+				Rhs: NewNode(NKNum, &Number{Val: lhs.Type.Base.Size}, tok),
 			},
 			tok,
 		)
@@ -135,89 +195,81 @@ func (n *Node) addType() {
 
 	switch n.Kind {
 	case NKNeg, NKAddr, NKDeRef, NKReturn, NKExprStmt:
-		// Unary
-		if node := n.Val.(*Node); node != nil {
+		if node := n.Unary.Expr; node != nil {
 			node.addType()
 		}
 	case NKAdd, NKSub, NKMul, NKDiv,
 		NKEq, NKNe, NKLt, NKLe, NKAssign:
-		// Binary
-		expr := n.Val.(*BinaryExpr)
-		expr.Lhs.addType()
-		expr.Rhs.addType()
+		n.Binary.Lhs.addType()
+		n.Binary.Rhs.addType()
 	case NKBlock:
-		nodes := n.Val.([]*Node)
-		for _, node := range nodes {
+		for _, node := range n.Block.Stmts {
 			node.addType()
 		}
 	case NKIf:
-		ifClause := n.Val.(*IfClause)
-		if ifClause.Cond != nil {
-			ifClause.Cond.addType()
+		if n.IfClause.Cond != nil {
+			n.IfClause.Cond.addType()
 		}
-		if ifClause.Then != nil {
-			ifClause.Then.addType()
+		if n.IfClause.Then != nil {
+			n.IfClause.Then.addType()
 		}
-		if ifClause.Else != nil {
-			ifClause.Else.addType()
+		if n.IfClause.Else != nil {
+			n.IfClause.Else.addType()
 		}
 	case NKFor:
-		forClause := n.Val.(*ForClause)
-		if forClause.Init != nil {
-			forClause.Init.addType()
+		if n.ForClause.Init != nil {
+			n.ForClause.Init.addType()
 		}
-		if forClause.Cond != nil {
-			forClause.Cond.addType()
+		if n.ForClause.Cond != nil {
+			n.ForClause.Cond.addType()
 		}
-		if forClause.Increment != nil {
-			forClause.Increment.addType()
+		if n.ForClause.Increment != nil {
+			n.ForClause.Increment.addType()
 		}
-		if forClause.Body != nil {
-			forClause.Body.addType()
+		if n.ForClause.Body != nil {
+			n.ForClause.Body.addType()
 		}
 	}
 
 	switch n.Kind {
 	case NKAdd, NKSub, NKMul, NKDiv, NKAssign:
-		node := n.Val.(*BinaryExpr)
-		n.Type = node.Lhs.Type
-		if n.Kind == NKSub && node.Lhs.Type.Kind == TYPtr && node.Rhs.Type.Kind == TYPtr {
+		n.Type = n.Binary.Lhs.Type
+		if n.Kind == NKSub &&
+			n.Binary.Lhs.Type.Kind == TYPtr &&
+			n.Binary.Rhs.Type.Kind == TYPtr {
 			n.Type = IntType
 		}
 	case NKComma:
-		binary := n.Val.(*BinaryExpr)
-		binary.Lhs.addType()
-		binary.Rhs.addType()
-		n.Type = binary.Rhs.Type
+		n.Binary.Lhs.addType()
+		n.Binary.Rhs.addType()
+		n.Type = n.Binary.Rhs.Type
 	case NKNeg:
-		n.Type = n.Val.(*Node).Type
+		n.Type = n.Unary.Expr.Type
 	case NKEq, NKNe, NKLt, NKLe, NKNum, NKFuncCall:
 		n.Type = IntType
 	case NKVariable:
-		n.Type = n.Val.(*Object).Type
+		n.Type = n.Variable.Object.Type
 	case NKMember:
-		n.Type = n.Val.(*StructMemberAccess).Member.Type
+		n.Type = n.MemberAccess.Member.Type
 	case NKAddr:
-		if n.Val.(*Node).Type.Kind == TYArray {
-			n.Type = NewType(TYPtr, n.Val.(*Node).Type.Base, nil)
+		if n.Unary.Expr.Type.Kind == TYArray {
+			n.Type = NewType(TYPtr, n.Unary.Expr.Type.Base, nil)
 		} else {
-			n.Type = NewType(TYPtr, n.Val.(*Node).Type, nil)
+			n.Type = NewType(TYPtr, n.Unary.Expr.Type, nil)
 		}
 	case NKDeRef:
-		if n.Val.(*Node).Type.Base == nil {
+		if n.Unary.Expr.Type.Base == nil {
 			panic(n.Tok.Errorf("invalid pointer dereference"))
 		}
-		n.Type = n.Val.(*Node).Type.Base
-	case NKStmtExpr:
-		n.Val.(*Node).addType()
-		stmts := n.Val.(*Node).Val.([]*Node)
-		if len(stmts) == 0 {
+		n.Type = n.Unary.Expr.Type.Base
+	case NKStmtsExpr:
+		if len(n.Block.Stmts) == 0 {
 			panic(n.Tok.Errorf("statement expression returning void is not supported"))
 		}
-		last := stmts[len(stmts)-1]
+		last := n.Block.Stmts[len(n.Block.Stmts)-1]
 		if last.Kind != NKExprStmt {
 			panic(n.Tok.Errorf("statement expression returning void is not supported"))
 		}
-		n.Type = last.Val.(*Node).Type
+		n.Type = last.Unary.Expr.Type
 	}
 }

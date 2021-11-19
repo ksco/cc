@@ -17,28 +17,36 @@ type Global struct {
 	Val    interface{}
 }
 
+type ObjectKind int
+
+const (
+	ObjectKindLocal ObjectKind = iota
+	ObjectKindGlobal
+	ObjectKindFunction
+)
+
 type Object struct {
 	Name string
+	Kind ObjectKind
 	Type *Type
 
-	// One of *Local, *Global or *Function
-	Val interface{}
+	// Only one of the following fields will be set.
+	Local    *Local
+	Global   *Global
+	Function *Function
 }
 
 func (o *Object) AlignLocals() *Object {
-	var (
-		f  *Function
-		ok bool
-	)
-	if f, ok = o.Val.(*Function); !ok {
+	if o.Kind != ObjectKindFunction {
 		return o
 	}
+
 	offset := 0
-	for _, l := range f.Locals {
+	for _, l := range o.Function.Locals {
 		offset += l.Type.Size
 		offset = alignTo(offset, l.Type.Align)
-		l.Val = &Local{Offset: offset}
+		l.Local.Offset = offset
 	}
-	f.StackSize = alignTo(offset, 16)
+	o.Function.StackSize = alignTo(offset, 16)
 	return o
 }

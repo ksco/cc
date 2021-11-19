@@ -1,7 +1,5 @@
 package cc
 
-import "fmt"
-
 type Scope struct {
 	vars []*Object
 	tags []*Type
@@ -19,7 +17,7 @@ type Parser struct {
 func NewParser(tokens []*Token) *Parser {
 	return &Parser{
 		tokens: tokens,
-		scopes: []*Scope{&Scope{}},
+		scopes: []*Scope{{}},
 	}
 }
 
@@ -50,7 +48,7 @@ func (p *Parser) Parse() (objects []*Object, err error) {
 }
 
 func (p *Parser) EnterScope() {
-	p.scopes = append([]*Scope{&Scope{}}, p.scopes...)
+	p.scopes = append([]*Scope{{}}, p.scopes...)
 }
 
 func (p *Parser) LeaveScope() {
@@ -71,14 +69,16 @@ func (p *Parser) PushTagScope(t *Type) {
 
 func (p *Parser) AddLocals(locals ...*Object) {
 	for _, l := range locals {
-		l.Val = &Local{}
+		l.Kind = ObjectKindLocal
+		l.Local = &Local{}
 		p.PushVarScope(l)
 	}
 }
 
 func (p *Parser) AddGlobals(globals ...*Object) {
 	for _, g := range globals {
-		g.Val = &Global{}
+		g.Kind = ObjectKindGlobal
+		g.Global = &Global{}
 		p.PushVarScope(g)
 	}
 }
@@ -176,8 +176,9 @@ func (p *Parser) FuncDef() *Object {
 	f.Params = params
 	p.LeaveScope()
 	return (&Object{
-		Name: o.Name,
-		Val:  f,
+		Name:     o.Name,
+		Kind:     ObjectKindFunction,
+		Function: f,
 	}).AlignLocals()
 }
 
@@ -301,19 +302,13 @@ func (p *Parser) Declaration() *Node {
 		}
 		p.Next()
 
-		assigns = append(assigns, NewNode(
-			NKExprStmt,
-			NewNode(
-				NKAssign,
-				&BinaryExpr{
-					Lhs: NewNode(NKVariable, obj, tok),
-					Rhs: p.Assign(),
-				}, tok),
-			tok),
-		)
+		assigns = append(assigns, NewNode(NKExprStmt, &Unary{
+			Expr: NewNode(NKAssign,
+				&Binary{Lhs: NewNode(NKVariable, &Variable{Object: obj}, tok), Rhs: p.Assign()},
+				tok)}, tok))
 	}
 
-	return NewNode(NKBlock, assigns, p.Current())
+	return NewNode(NKBlock, &Block{Stmts: assigns}, p.Current())
 }
 
 func (p *Parser) Stmt() *Node {
@@ -323,7 +318,7 @@ func (p *Parser) Stmt() *Node {
 
 		expr := p.Expr()
 		p.Consume(TKPunctuator, ";")
-		return NewNode(NKReturn, expr, cur)
+		return NewNode(NKReturn, &Unary{Expr: expr}, cur)
 	}
 
 	if cur.Equal(TKKeyword, "if") {
@@ -394,6 +389,7 @@ func (p *Parser) IsTypeName() bool {
 
 func (p *Parser) Stmts() *Node {
 	var body []*Node
+	tok := p.Current()
 	for !p.Current().Equal(TKPunctuator, "}") {
 		if p.IsTypeName() {
 			body = append(body, p.Declaration())
@@ -404,23 +400,20 @@ func (p *Parser) Stmts() *Node {
 
 	p.Next()
 
-	return &Node{
-		Kind: NKBlock,
-		Val:  body,
-	}
+	return NewNode(NKBlock, &Block{Stmts: body}, tok)
 }
 
 func (p *Parser) ExprStmt() *Node {
 	tok := p.Current()
 	if p.Current().Equal(TKPunctuator, ";") {
 		p.Next()
-		return NewNode(NKBlock, make([]*Node, 0), tok)
+		return NewNode(NKBlock, &Block{}, tok)
 	}
 
 	tok = p.Current()
 	expr := p.Expr()
 	p.Consume(TKPunctuator, ";")
-	return NewNode(NKExprStmt, expr, tok)
+	return NewNode(NKExprStmt, &Unary{Expr: expr}, tok)
 }
 
 func (p *Parser) Expr() *Node {
@@ -428,7 +421,7 @@ func (p *Parser) Expr() *Node {
 	node := p.Assign()
 	if p.Current().Equal(TKPunctuator, ",") {
 		p.Next()
-		return NewNode(NKComma, &BinaryExpr{Lhs: node, Rhs: p.Expr()}, tok)
+		return NewNode(NKComma, &Binary{Lhs: node, Rhs: p.Expr()}, tok)
 	}
 
 	return node
@@ -439,7 +432,7 @@ func (p *Parser) Assign() *Node {
 	e := p.Equality()
 	if p.Current().Equal(TKPunctuator, "=") {
 		p.Next()
-		e = NewNode(NKAssign, &BinaryExpr{Lhs: e, Rhs: p.Assign()}, tok)
+		e = NewNode(NKAssign, &Binary{Lhs: e, Rhs: p.Assign()}, tok)
 	}
 
 	return e
@@ -451,12 +444,12 @@ func (p *Parser) Equality() *Node {
 	for true {
 		if p.Current().Equal(TKPunctuator, "==") {
 			p.Next()
-			r = NewNode(NKEq, &BinaryExpr{Lhs: r, Rhs: p.Relational()}, tok)
+			r = NewNode(NKEq, &Binary{Lhs: r, Rhs: p.Relational()}, tok)
 			continue
 		}
 		if p.Current().Equal(TKPunctuator, "!=") {
 			p.Next()
-			r = NewNode(NKNe, &BinaryExpr{Lhs: r, Rhs: p.Relational()}, tok)
+			r = NewNode(NKNe, &Binary{Lhs: r, Rhs: p.Relational()}, tok)
 			continue
 		}
 
@@ -473,23 +466,23 @@ func (p *Parser) Relational() *Node {
 	for true {
 		if p.Current().Equal(TKPunctuator, "<") {
 			p.Next()
-			a = NewNode(NKLt, &BinaryExpr{Lhs: a, Rhs: p.Add()}, tok)
+			a = NewNode(NKLt, &Binary{Lhs: a, Rhs: p.Add()}, tok)
 			continue
 		}
 		if p.Current().Equal(TKPunctuator, "<=") {
 			p.Next()
-			a = NewNode(NKLe, &BinaryExpr{Lhs: a, Rhs: p.Add()}, tok)
+			a = NewNode(NKLe, &Binary{Lhs: a, Rhs: p.Add()}, tok)
 			continue
 		}
 
 		if p.Current().Equal(TKPunctuator, ">") {
 			p.Next()
-			a = NewNode(NKLt, &BinaryExpr{Lhs: p.Add(), Rhs: a}, tok)
+			a = NewNode(NKLt, &Binary{Lhs: p.Add(), Rhs: a}, tok)
 			continue
 		}
 		if p.Current().Equal(TKPunctuator, ">=") {
 			p.Next()
-			a = NewNode(NKLe, &BinaryExpr{Lhs: p.Add(), Rhs: a}, tok)
+			a = NewNode(NKLe, &Binary{Lhs: p.Add(), Rhs: a}, tok)
 			continue
 		}
 
@@ -528,12 +521,12 @@ func (p *Parser) Mul() *Node {
 	for true {
 		if p.Current().Equal(TKPunctuator, "*") {
 			p.Next()
-			u = NewNode(NKMul, &BinaryExpr{Lhs: u, Rhs: p.Unary()}, tok)
+			u = NewNode(NKMul, &Binary{Lhs: u, Rhs: p.Unary()}, tok)
 			continue
 		}
 		if p.Current().Equal(TKPunctuator, "/") {
 			p.Next()
-			u = NewNode(NKDiv, &BinaryExpr{Lhs: u, Rhs: p.Unary()}, tok)
+			u = NewNode(NKDiv, &Binary{Lhs: u, Rhs: p.Unary()}, tok)
 			continue
 		}
 
@@ -553,17 +546,17 @@ func (p *Parser) Unary() *Node {
 
 	if tok.Equal(TKPunctuator, "-") {
 		p.Next()
-		return NewNode(NKNeg, p.Unary(), tok)
+		return NewNode(NKNeg, &Unary{Expr: p.Unary()}, tok)
 	}
 
 	if tok.Equal(TKPunctuator, "*") {
 		p.Next()
-		return NewNode(NKDeRef, p.Unary(), tok)
+		return NewNode(NKDeRef, &Unary{Expr: p.Unary()}, tok)
 	}
 
 	if tok.Equal(TKPunctuator, "&") {
 		p.Next()
-		return NewNode(NKAddr, p.Unary(), tok)
+		return NewNode(NKAddr, &Unary{Expr: p.Unary()}, tok)
 	}
 
 	return p.Postfix()
@@ -630,7 +623,7 @@ func (p *Parser) Postfix() *Node {
 			tok := p.Current()
 			expr := p.Expr()
 			p.Consume(TKPunctuator, "]")
-			n = NewNode(NKDeRef, NewNodeAdd(n, expr, tok), tok)
+			n = NewNode(NKDeRef, &Unary{Expr: NewNodeAdd(n, expr, tok)}, tok)
 			continue
 		}
 
@@ -641,7 +634,7 @@ func (p *Parser) Postfix() *Node {
 
 			for _, m := range n.Type.Val.(*StructVal).Members {
 				if m.Name == p.Current().Lexeme {
-					return NewNode(NKMember, &StructMemberAccess{Struct: n, Member: m}, p.Current())
+					return NewNode(NKMember, &MemberAccess{Struct: n, Member: m}, p.Current())
 				}
 			}
 			panic(p.Current().Errorf("no such member"))
@@ -656,7 +649,7 @@ func (p *Parser) Postfix() *Node {
 
 		if p.Current().Equal(TKPunctuator, "->") {
 			p.Next()
-			n = NewNode(NKDeRef, n, p.Current())
+			n = NewNode(NKDeRef, &Unary{Expr: n}, p.Current())
 			n = memberAccess()
 
 			p.Next()
@@ -694,7 +687,7 @@ func (p *Parser) Primary() *Node {
 		block := p.Stmts()
 		p.LeaveScope()
 		p.Consume(TKPunctuator, ")")
-		return NewNode(NKStmtExpr, block, tok)
+		return NewNode(NKStmtsExpr, block.Block, tok)
 	}
 
 	if tok.Equal(TKPunctuator, "(") {
@@ -705,7 +698,7 @@ func (p *Parser) Primary() *Node {
 
 	if tok.Equal(TKKeyword, "sizeof") {
 		n := p.Unary()
-		return NewNode(NKNum, n.Type.Size, tok)
+		return NewNode(NKNum, &Number{Val: n.Type.Size}, tok)
 	}
 
 	if tok.Kind == TKIdentifier {
@@ -717,30 +710,24 @@ func (p *Parser) Primary() *Node {
 		if variable == nil {
 			panic(tok.Errorf("undefined variable '%s'", tok.Val.(string)))
 		}
-		return NewNode(NKVariable, variable, tok)
+		return NewNode(NKVariable, &Variable{Object: variable}, tok)
 	}
 
 	if tok.Kind == TKNumber {
-		return NewNode(NKNum, tok.Val, tok)
+		return NewNode(NKNum, &Number{Val: tok.Val.(int)}, tok)
 	}
 
 	if tok.Kind == TKString {
 		o := &Object{
-			Name: p.newStrId(),
-			Type: tok.Val.(*String).Type,
-			Val:  &Global{Val: tok.Val.(*String).Val},
+			Kind:   ObjectKindGlobal,
+			Type:   tok.Val.(*String).Type,
+			Global: &Global{Val: tok.Val.(*String).Val},
 		}
 		p.literals = append(p.literals, o)
-		return NewNode(NKVariable, o, tok)
+		return NewNode(NKVariable, &Variable{Object: o}, tok)
 	}
 
 	panic(tok.Errorf("expected an expression, got '%s' instead", tok.Lexeme))
-}
-
-func (p *Parser) newStrId() (s string) {
-	s = fmt.Sprintf(".L.str.%d", p.strId)
-	p.strId++
-	return
 }
 
 func alignTo(n int, align int) int {
