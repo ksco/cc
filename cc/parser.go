@@ -69,7 +69,7 @@ func (p *Parser) PushTagScope(t *Type) {
 
 func (p *Parser) AddLocals(locals ...*Object) {
 	for _, l := range locals {
-		l.Kind = ObjectKindLocal
+		l.Kind = OKLocal
 		l.Local = &Local{}
 		p.PushVarScope(l)
 	}
@@ -77,7 +77,7 @@ func (p *Parser) AddLocals(locals ...*Object) {
 
 func (p *Parser) AddGlobals(globals ...*Object) {
 	for _, g := range globals {
-		g.Kind = ObjectKindGlobal
+		g.Kind = OKGlobal
 		g.Global = &Global{}
 		p.PushVarScope(g)
 	}
@@ -177,7 +177,7 @@ func (p *Parser) FuncDef() *Object {
 	p.LeaveScope()
 	return (&Object{
 		Name:     o.Name,
-		Kind:     ObjectKindFunction,
+		Kind:     OKFunction,
 		Function: f,
 	}).AlignLocals()
 }
@@ -719,12 +719,12 @@ func (p *Parser) Primary() *Node {
 
 	if tok.Kind == TKString {
 		o := &Object{
-			Kind:   ObjectKindGlobal,
+			Kind:   OKStringLiteral,
 			Type:   tok.Val.(*String).Type,
 			Global: &Global{Val: tok.Val.(*String).Val},
 		}
 		p.literals = append(p.literals, o)
-		return NewNode(NKVariable, &Variable{Object: o}, tok)
+		return NewNode(NKStringLiteral, &Variable{Object: o}, tok)
 	}
 
 	panic(tok.Errorf("expected an expression, got '%s' instead", tok.Lexeme))

@@ -3,29 +3,30 @@ package cc
 type NodeKind int
 
 const (
-	NKAdd       NodeKind = iota // +
-	NKSub                       // -
-	NKMul                       // *
-	NKDiv                       // /
-	NKNeg                       // unary -
-	NKEq                        // ==
-	NKNe                        // !=
-	NKLt                        // <
-	NKLe                        // <=
-	NKAssign                    // =
-	NKComma                     // ,
-	NKMember                    // .
-	NKAddr                      // unary &
-	NKDeRef                     // unary *
-	NKReturn                    // "return"
-	NKIf                        // "if"
-	NKFor                       // "for", "while"
-	NKBlock                     // { ... }
-	NKFuncCall                  // function call
-	NKExprStmt                  // expression stmt
-	NKStmtsExpr                 // stmts expression
-	NKVariable                  // Variable
-	NKNum                       // integer
+	NKAdd           NodeKind = iota // +
+	NKSub                           // -
+	NKMul                           // *
+	NKDiv                           // /
+	NKNeg                           // unary -
+	NKEq                            // ==
+	NKNe                            // !=
+	NKLt                            // <
+	NKLe                            // <=
+	NKAssign                        // =
+	NKComma                         // ,
+	NKMember                        // .
+	NKAddr                          // unary &
+	NKDeRef                         // unary *
+	NKReturn                        // "return"
+	NKIf                            // "if"
+	NKFor                           // "for", "while"
+	NKBlock                         // { ... }
+	NKFuncCall                      // function call
+	NKExprStmt                      // expression stmt
+	NKStmtsExpr                     // stmts expression
+	NKVariable                      // Variable
+	NKNum                           // integer
+	NKStringLiteral                 // string literal
 )
 
 type StructMember struct {
@@ -128,7 +129,7 @@ func NewNode(kind NodeKind, val NodeVal, tok *Token) *Node {
 		n.FuncCall = val.(*FuncCall)
 	case NKNum:
 		n.Num = val.(*Number)
-	case NKVariable:
+	case NKVariable, NKStringLiteral:
 		n.Variable = val.(*Variable)
 	}
 	n.addType()
@@ -247,7 +248,7 @@ func (n *Node) addType() {
 		n.Type = n.Unary.Expr.Type
 	case NKEq, NKNe, NKLt, NKLe, NKNum, NKFuncCall:
 		n.Type = IntType
-	case NKVariable:
+	case NKVariable, NKStringLiteral:
 		n.Type = n.Variable.Object.Type
 	case NKMember:
 		n.Type = n.MemberAccess.Member.Type

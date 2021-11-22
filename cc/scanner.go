@@ -192,7 +192,8 @@ func readEscapedChar(s []rune) (rs []rune, l int, err error) {
 				l += 1
 			}
 		}
-		rs = []rune(fmt.Sprintf("\\%o", c))
+
+		rs = []rune(fmt.Sprintf("\\%02x", c))
 		return
 	case 'x':
 		l += 1
@@ -205,21 +206,33 @@ func readEscapedChar(s []rune) (rs []rune, l int, err error) {
 		for ; isHex(s[l]); l++ {
 			c = (c << 4) + hexToInt(s[l])
 		}
-		rs = []rune(fmt.Sprintf("\\%o", c))
+		rs = []rune(fmt.Sprintf("\\%02x", c))
 		return
 	case 'a':
-		rs = []rune("\\007")
+		rs = []rune("\\07")
+		l = l + 1
+		return
+	case 'b':
+		rs = []rune("\\08")
+		l = l + 1
+		return
+	case 'f':
+		rs = []rune("\\0c")
+		l = l + 1
+		return
+	case 'r':
+		rs = []rune("\\0d")
 		l = l + 1
 		return
 	case 'v':
-		rs = []rune("\\013")
+		rs = []rune("\\0b")
 		l = l + 1
 		return
 	case 'e':
-		rs = []rune("\\033")
+		rs = []rune("\\1b")
 		l = l + 1
 		return
-	case 'b', 't', 'n', 'f', 'r':
+	case 't', 'n':
 		rs = []rune{'\\', s[l]}
 		l = l + 1
 		return

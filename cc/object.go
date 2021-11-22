@@ -20,9 +20,10 @@ type Global struct {
 type ObjectKind int
 
 const (
-	ObjectKindLocal ObjectKind = iota
-	ObjectKindGlobal
-	ObjectKindFunction
+	OKLocal ObjectKind = iota
+	OKGlobal
+	OKStringLiteral
+	OKFunction
 )
 
 type Object struct {
@@ -37,7 +38,7 @@ type Object struct {
 }
 
 func (o *Object) AlignLocals() *Object {
-	if o.Kind != ObjectKindFunction {
+	if o.Kind != OKFunction {
 		return o
 	}
 

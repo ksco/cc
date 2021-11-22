@@ -52,20 +52,14 @@ func (c *Codegen) Gen() (err error) {
 func (c *Codegen) GenData() int {
 	memoryOffset := 0
 	for _, o := range c.objects {
-		if o.Kind != ObjectKindGlobal {
-			continue
-		}
-
-		if o.Global.Val != nil {
-			// String literals
-			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, o.Global.Val.([]byte))
-			o.Global.Offset = memoryOffset
-			memoryOffset += len(o.Global.Val.([]byte))
-		} else {
-			// Global variables
+		if o.Kind == OKGlobal {
 			c.Printf("  (data (i32.const %d) \"%s\")\n", memoryOffset, strings.Repeat("\\00", o.Type.Size))
 			o.Global.Offset = memoryOffset
 			memoryOffset += o.Type.Size
+		} else if o.Kind == OKStringLiteral {
+			c.Printf("  (data (i32.const %d) \"%s\\00\")\n", memoryOffset, o.Global.Val.([]byte))
+			o.Global.Offset = memoryOffset
+			memoryOffset += len(o.Global.Val.([]byte)) + 1
 		}
 	}
 
@@ -74,7 +68,7 @@ func (c *Codegen) GenData() int {
 
 func (c *Codegen) GenCode() {
 	for _, o := range c.objects {
-		if o.Kind != ObjectKindFunction || o.Function.IsDefinition {
+		if o.Kind != OKFunction || o.Function.IsDefinition {
 			continue
 		}
 
@@ -127,11 +121,14 @@ func (c *Codegen) GenExpr(node *Node) {
 		return
 	case NKVariable:
 		c.GenAddr(node)
-		c.Printf("    %s.load\n", node.Type.WasmType())
+		c.Printf("    %s.%s\n", node.Type.WasmType(), node.Type.WasmLoad())
+		return
+	case NKStringLiteral:
+		c.GenAddr(node)
 		return
 	case NKDeRef:
 		c.GenExpr(node.Unary.Expr)
-		c.Printf("    %s.load\n", node.Type.WasmType())
+		c.Printf("    %s.%s\n", node.Type.WasmType(), node.Type.WasmLoad())
 		return
 	case NKAddr:
 		c.GenAddr(node.Unary.Expr)
@@ -186,13 +183,13 @@ func (c *Codegen) GenExpr(node *Node) {
 
 func (c *Codegen) GenAddr(node *Node) {
 	switch node.Kind {
-	case NKVariable:
+	case NKVariable, NKStringLiteral:
 		switch node.Variable.Object.Kind {
-		case ObjectKindLocal:
+		case OKLocal:
 			c.Printf("    global.get $sp\n")
 			c.Printf("    i32.const %d\n", node.Variable.Object.Local.Offset)
 			c.Printf("    i32.add\n")
-		case ObjectKindGlobal:
+		case OKGlobal, OKStringLiteral:
 			c.Printf("    i32.const %d\n", node.Variable.Object.Global.Offset)
 		default:
 			panic(errors.New("not a lvalue"))

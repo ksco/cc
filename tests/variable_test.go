@@ -80,6 +80,8 @@ func TestVariable(t *testing.T) {
 	a.Eval(int32(3), "int main() { char (x)[3]; return sizeof(x); }")
 	a.Eval(int32(12), "int main() { char (x[3])[4]; return sizeof(x); }")
 	a.Eval(int32(4), "int main() { char (x[3])[4]; return sizeof(x[0]); }")
+
+	// FIXME
 	//a.Eval(int32(3), "int main() { char *x[3]; char y; x[0]=&y; y=3; return x[0][0]; }")
 	//a.Eval(int32(4), "int main() { char x[3]; char (*y)[3]=x; y[0][0]=4; return y[0][0]; }")
 }

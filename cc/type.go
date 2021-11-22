@@ -49,6 +49,15 @@ func (t *Type) WasmType() string {
 	}
 }
 
+func (t *Type) WasmLoad() string {
+	switch t.Kind {
+	case TYChar:
+		return "load8_s"
+	default:
+		return "load"
+	}
+}
+
 // Resize recalculates size and align recursively
 func (t *Type) Resize() {
 	if t.Base != nil {
