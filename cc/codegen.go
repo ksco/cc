@@ -91,10 +91,12 @@ func (c *Codegen) GenCode() {
 		c.Printf("i32.sub\n")
 		c.Printf("global.set $sp\n")
 		c.Printf("block $ENTRY\n")
+		c.Indent(true)
 
 		c.GenStmt(o.Function.Body)
 
-		// // Epilogue
+		// Epilogue
+		c.Indent(false)
 		c.Printf("end\n")
 		c.Printf("global.get $sp\n")
 		c.Printf("i32.const %d\n", o.Function.StackSize)
@@ -128,6 +130,33 @@ func (c *Codegen) GenStmt(node *Node) {
 			c.GenStmt(node.IfClause.Else)
 		}
 		c.Printf("br %s\n", blockFalseName)
+		c.Indent(false)
+		c.Printf("end\n")
+		return
+	case NKFor:
+		blockName := c.NextBlockName()
+		loopName := c.NextBlockName()
+		c.Printf("block %s\n", blockName)
+		c.Indent(true)
+		if node.ForClause.Init != nil {
+			c.GenStmt(node.ForClause.Init)
+		}
+		c.Printf("loop %s\n", loopName)
+		c.Indent(true)
+		if node.ForClause.Cond != nil {
+			c.GenExpr(node.ForClause.Cond)
+			c.Printf("i32.eqz\n")
+			c.Printf("br_if %s\n", blockName)
+		}
+
+		c.GenStmt(node.ForClause.Body)
+		if node.ForClause.Increment != nil {
+			c.GenExpr(node.ForClause.Increment)
+		}
+		c.Printf("br %s\n", loopName)
+		c.Indent(false)
+		c.Printf("end\n")
+		c.Printf("br %s\n", blockName)
 		c.Indent(false)
 		c.Printf("end\n")
 		return
@@ -238,6 +267,10 @@ func (c *Codegen) GenAddr(node *Node) {
 		return
 	case NKDeRef:
 		c.GenExpr(node.Unary.Expr)
+		return
+	case NKComma:
+		c.GenExpr(node.Binary.Lhs)
+		c.GenAddr(node.Binary.Rhs)
 		return
 	}
 
