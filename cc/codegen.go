@@ -90,6 +90,13 @@ func (c *Codegen) GenCode() {
 		c.Printf("i32.const %d\n", o.Function.StackSize)
 		c.Printf("i32.sub\n")
 		c.Printf("global.set $sp\n")
+		for _, param := range o.Function.Params {
+			c.Printf("global.get $sp\n")
+			c.Printf("i32.const %d\n", param.Local.Offset)
+			c.Printf("i32.add\n")
+			c.Printf("local.get $%s\n", param.Name)
+			c.Printf("%s.store\n", param.Type.WasmType())
+		}
 		c.Printf("block $ENTRY\n")
 		c.Indent(true)
 
@@ -215,6 +222,12 @@ func (c *Codegen) GenExpr(node *Node) {
 		return
 	case NKStmtsExpr:
 		c.GenStmt(node)
+		return
+	case NKFuncCall:
+		for _, arg := range node.FuncCall.Args {
+			c.GenExpr(arg)
+		}
+		c.Printf("call $%s\n", node.FuncCall.Name)
 		return
 	}
 
