@@ -204,7 +204,7 @@ func (c *Codegen) GenExpr(node *Node) {
 		c.GenAddr(node)
 		return
 	case NKDeRef:
-		c.GenExpr(node.Unary.Expr)
+		c.GenAddr(node.Unary.Expr)
 		c.Printf("%s.%s\n", node.Type.WasmType(), node.Type.WasmLoad())
 		return
 	case NKAddr:
@@ -214,11 +214,11 @@ func (c *Codegen) GenExpr(node *Node) {
 		c.GenAddr(node.Binary.Lhs)
 		c.GenExpr(node.Binary.Rhs)
 		c.Printf("%s.store\n", node.Type.WasmType())
-		c.GenExpr(node.Binary.Lhs)
+		c.GenAddr(node.Binary.Lhs)
 		return
 	case NKComma:
 		c.GenExpr(node.Binary.Lhs)
-		c.GenExpr(node.Binary.Rhs)
+		c.GenAddr(node.Binary.Rhs)
 		return
 	case NKStmtsExpr:
 		c.GenStmt(node)
